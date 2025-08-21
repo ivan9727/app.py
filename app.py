@@ -32,8 +32,8 @@ with st.form("register_form", clear_on_submit=True):
     transport_type = st.selectbox("Transporttype", ["", "Tog", "Bil"])
     destination = st.selectbox(
         "Destinasjon",
-        ["", "Destinasjon 1", "Destinasjon 2", "Destinasjon 3",
-         "Destinasjon 4", "Destinasjon 5", "Destinasjon 6"]
+        ["", "Førde", "Molde ", "Haugesund",
+         "Ålesund", "Trondheim", "Stavanger"]
     )
 
     submit = st.form_submit_button("➕ Registrer avgang")
