@@ -87,10 +87,10 @@ if "edit_index" in st.session_state:
                                       index=["Tog", "Bil"].index(data.loc[idx, "Transporttype"]))
         destination = st.selectbox(
             "Destinasjon",
-            ["Destinasjon 1", "Destinasjon 2", "Destinasjon 3",
-             "Destinasjon 4", "Destinasjon 5", "Destinasjon 6"],
-            index=["Destinasjon 1", "Destinasjon 2", "Destinasjon 3",
-                   "Destinasjon 4", "Destinasjon 5", "Destinasjon 6"].index(data.loc[idx, "Destinasjon"])
+            ["Førde ", "Molde", "Haugesund",
+             "Ålesund", "Trondheim", "Stavanger"],
+            index=["Førde", "Molde", "Haugesund",
+                   "Ålesund, "Trondheim", "Stavanger"].index(data.loc[idx, "Destinasjon"])
         )
 
         save_changes = st.form_submit_button("💾 Spremi")
