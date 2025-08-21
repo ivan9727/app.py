@@ -90,7 +90,7 @@ if "edit_index" in st.session_state:
             ["Førde ", "Molde", "Haugesund",
              "Ålesund", "Trondheim", "Stavanger"],
             index=["Førde", "Molde", "Haugesund",
-                   "Ålesund, "Trondheim", "Stavanger"].index(data.loc[idx, "Destinasjon"])
+                   "Ålesund", "Trondheim", "Stavanger"].index(data.loc[idx, "Destinasjon"])
         )
 
         save_changes = st.form_submit_button("💾 Spremi")
