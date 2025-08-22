@@ -10,24 +10,11 @@ from io import BytesIO
 st.set_page_config(page_title="Departures", page_icon="🚉", layout="wide")
 DB_PATH = "data.db"
 
-# --- Auto refresh svakih 30 s (30000 ms) ---
+# --- Auto-refresh svake 3 sekunde (3000 ms) ---
 try:
-    from streamlit import experimental_rerun  # just to ensure import exists
-    st.autorefresh = st.experimental_rerun  # no-op alias if st_autorefresh ne postoji
-except:
-    pass
-# ugrađeni helper (Streamlit >= 1.18): st_autorefresh
-try:
-    from streamlit.runtime.scriptrunner import add_script_run_ctx  # noqa
-    st_autorefresh = st.experimental_singleton  # dummy to avoid lint
-except:
-    pass
-# koristimo službeni API (od 1.22 dostupno)
-try:
-    from streamlit import st_autorefresh
-    st_autorefresh(interval=30000, key="auto_refresh_30s")
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=3000, key="live_sync_3s")
 except Exception:
-    # fallback: ništa – i dalje radi bez auto refresh-a
     pass
 
 # =======================
@@ -58,7 +45,7 @@ TXT = {
         "gate_digits_live":"⚠️ Gate must contain digits only.",
         "gate_digits_block":"⚠️ Gate must be a number.",
         "menu_more":"⋯",
-        "auto_refresh_note":"Auto-refresh every 30s enabled.",
+        "auto_refresh_note":"Auto-refresh every 3s enabled.",
     },
     "Norsk": {
         "title": "🚉 Avganger",
@@ -83,14 +70,14 @@ TXT = {
         "gate_digits_live":"⚠️ Luke må kun inneholde tall.",
         "gate_digits_block":"⚠️ Luke må være et tall.",
         "menu_more":"⋯",
-        "auto_refresh_note":"Auto-oppdatering hvert 30s er aktiv.",
+        "auto_refresh_note":"Auto-oppdatering hvert 3s er aktiv.",
     }
 }[LANG]
 
 DESTINATIONS = ["", "Førde", "Molde", "Haugesund", "Ålesund", "Trondheim", "Stavanger"]
 
 # =======================
-# CSS – dark & kompaktni chip red
+# CSS – dark & kompaktni chip red + BOJE GUMBOVA
 # =======================
 def inject_css():
     st.markdown("""
@@ -98,16 +85,18 @@ def inject_css():
     :root {
       --bg:#0e1116; --card:#12161d; --txt:#eaeaea; --bd:#26303a;
       --chip-bg: rgba(255,255,255,.06); --chip-bd:#2b3642; --muted:.68;
-      --green:#16a34a; --green-bg:#eaf7ef; --red:#ef4444; --red-bg:#fdecec; --blue:#2563eb; --blue-bg:#e8f0ff;
+      --green:#16a34a; --green-bg:#eaf7ef; --red:#ef4444; --red-bg:#fdecec; --blue:#2563eb; --blue-dark:#1e40af; --blue-bg:#e8f0ff;
     }
     body, .block-container { background:var(--bg)!important; color:var(--txt)!important; }
     .stApp [data-testid="stHeader"]{ background:transparent; }
-    .stButton > button { border-radius:10px; font-weight:800; }
-    .stTextInput input, .stTextArea textarea, .stTimeInput input { border-radius:10px!important; }
+
+    /* opći izgled */
+    .stButton > button, .stDownloadButton > button { border-radius:10px; font-weight:800; }
 
     .tile{ border:1px solid var(--bd); background:var(--card); border-radius:14px;
            padding:12px; margin-bottom:12px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 
+    /* jedan vodoravni red, s vodoravnim scrollom na uskim ekranima */
     .chips-wrap{ overflow-x:auto; white-space:nowrap; padding-bottom:2px; }
     .chip{ display:inline-flex; gap:6px; align-items:center; margin-right:8px;
            padding:6px 10px; border-radius:10px; background:var(--chip-bg);
@@ -117,12 +106,28 @@ def inject_css():
     .chip-red{ background:var(--red-bg); color:var(--red); border-color:rgba(239,68,68,.25); }
 
     .muted{ opacity:var(--muted); }
-    .more-btn > div > button { border-radius:10px; padding:.35rem .6rem; font-weight:900; }
+    .stTextInput input, .stTextArea textarea, .stTimeInput input { border-radius:10px!important; }
     div[data-testid="stPopoverBody"]{ min-width:320px; }
 
-    @media (max-width:480px){
-      .chip{ font-size:.88rem; padding:5px 8px; margin-right:6px; }
+    /* BOJE GUMBOVA */
+    /* Add (submit) – plav: cilja submit gumb unutar add forme po redoslijedu */
+    form[data-testid="stForm"] button[type="submit"]{
+        background: var(--blue) !important;
+        border-color: var(--blue-dark) !important;
+        color: white !important;
     }
+    form[data-testid="stForm"] button[type="submit"]:hover{
+        filter: brightness(1.05);
+    }
+
+    /* Popover: 1. gumb (Edit) zelen, 2. gumb (Delete) crven */
+    div[data-testid="stPopoverBody"] button:nth-of-type(1){
+        background: var(--green) !important; border-color:#0f7a2a !important; color:white !important;
+    }
+    div[data-testid="stPopoverBody"] button:nth-of-type(2){
+        background: var(--red) !important; border-color:#b91c1c !important; color:white !important;
+    }
+    div[data-testid="stPopoverBody"] button:hover{ filter:brightness(1.05); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -152,9 +157,9 @@ def init_db():
 init_db()
 
 # =======================
-# Cache helpers (TTL za multi-device osvježavanje)
+# Cache helpers (TTL=2s → svježe za multi-device)
 # =======================
-@st.cache_data(show_spinner=False, ttl=15)
+@st.cache_data(show_spinner=False, ttl=2)
 def count_summary(day: str):
     with db() as con:
         total = con.execute("SELECT COUNT(*) FROM departures WHERE service_date=?", (day,)).fetchone()[0]
@@ -162,7 +167,7 @@ def count_summary(day: str):
         cars   = con.execute("SELECT COUNT(*) FROM departures WHERE service_date=? AND transport_type='Car'", (day,)).fetchone()[0]
     return total, trains, cars
 
-@st.cache_data(show_spinner=False, ttl=15)
+@st.cache_data(show_spinner=False, ttl=2)
 def get_rows(day: str, where_sql: str, where_args: tuple, order_sql: str):
     sql = f"SELECT * FROM departures WHERE service_date=? {where_sql} {order_sql}"
     with db() as con:
@@ -171,7 +176,7 @@ def get_rows(day: str, where_sql: str, where_args: tuple, order_sql: str):
         rows = cur.fetchall()
     return pd.DataFrame(rows, columns=cols)
 
-@st.cache_data(show_spinner=False, ttl=15)
+@st.cache_data(show_spinner=False, ttl=2)
 def export_day(day: str):
     with db() as con:
         cur = con.execute("SELECT * FROM departures WHERE service_date=? ORDER BY departure_time, destination", (day,))
@@ -253,7 +258,7 @@ from datetime import time as _t
 if st.session_state.get("add_clear_pending"):
     st.session_state["add_unit"] = ""
     st.session_state["add_gate"] = ""
-    st.session_state["add_time"] = _t(0, 0)   # makni želiš li zadržati prošlo vrijeme
+    st.session_state["add_time"] = _t(0, 0)   # makni ako želiš zadržati zadnje vrijeme
     st.session_state["add_dest"] = ""
     st.session_state["add_transport"] = "Train"
     st.session_state["add_comment"] = ""
@@ -322,12 +327,12 @@ if st.session_state.get("flt_q","").strip():
 order_sql = " ORDER BY destination, departure_time" if st.session_state.get("flt_sort",TXT["sort_time"])==TXT["sort_dest"] else " ORDER BY departure_time, destination"
 
 # =======================
-# Dohvati SVE filtrirane redove (nema paginacije)
+# Dohvati sve (bez paginacije)
 # =======================
 df = get_rows(day_str, where_sql, where_args, order_sql)
 
 # =======================
-# Tile renderer – kompaktan red + 3 točke
+# Tile renderer – kompaktan red + 3 točke (Edit/Delete)
 # =======================
 def render_tile(row):
     rid = int(row["id"])
@@ -349,7 +354,7 @@ def render_tile(row):
         )
         st.markdown(f"<div class='muted' style='margin-top:6px'>{row['comment'] or '—'}</div>", unsafe_allow_html=True)
 
-        # 3 točke – popover s Edit/Delete
+        # 3 točke – popover s obojenim gumbima (Edit zelen, Delete crven)
         c1, _, _ = st.columns([0.2, 0.2, 6])
         with c1:
             with st.popover(TXT["menu_more"]):
@@ -368,7 +373,7 @@ def render_tile(row):
                 st.session_state[f"askdel_{rid}"] = False
 
     else:
-        # INLINE EDIT unutar istog tile-a
+        # INLINE EDIT unutar istog tile-a (jedan submit → Save Edit)
         with st.form(f"edit_{rid}", clear_on_submit=False):
             e1, e2, e3, e4, e5 = st.columns([1.2,1,1,1.2,1.2])
             try:
