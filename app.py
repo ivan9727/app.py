@@ -9,23 +9,17 @@ import streamlit.components.v1 as components
 # =========================
 # App Config
 # =========================
-st.set_page_config(page_title="Departures Manager", page_icon="🚉", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Departures Manager",
+    page_icon="🚉",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 # =========================
 # Const & Schema
 # =========================
 DATA_FILE = "departures.csv"
-LOCK_FILE = DATA_FILE + ".lock"
-
-try:
-    from filelock import FileLock
-    def get_lock():
-        return FileLock(LOCK_FILE)
-except Exception:
-    from contextlib import contextmanager
-    @contextmanager
-    def get_lock():
-        yield
 
 COLS = [
     "ID", "Service Date", "Unit Number", "Gate",
@@ -136,68 +130,69 @@ def inject_css(theme: str):
         header_grad="linear-gradient(90deg, rgba(37,99,235,0.10), rgba(22,163,74,0.10))"
         section_strip="#20b15a"
 
-    st.markdown(f"""
-    <style>
-    {"body, .block-container { background-color:%s !important; color:%s !important; }" % (base_bg, base_fg) if dark or light else ""}
+    st.markdown(
+        f"""
+        <style>
+        {"body, .block-container {{ background-color: %s !important; color: %s !important; }}" % (base_bg, base_fg) if dark or light else ""}
 
-    .block-container > div:first-child h1 {{
-        background:{header_grad}; border:1px solid {border};
-        padding:12px 16px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,0.04);
-    }}
+        .block-container > div:first-child h1 {{
+            background: {header_grad}; border: 1px solid {border};
+            padding: 12px 16px; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }}
 
-    .app-card {{
-        position:relative; background:{card_bg}; border:1px solid {border};
-        padding:1rem 1rem 1rem 1.1rem; border-radius:12px; margin-bottom:.8rem;
-    }}
-    .app-card:before {{ content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:{section_strip}; opacity:.85; }}
+        .app-card {{
+            position: relative; background: {card_bg}; border: 1px solid {border};
+            padding: 1rem 1rem 1rem 1.1rem; border-radius: 12px; margin-bottom: .8rem;
+        }}
+        .app-card:before {{
+            content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: {section_strip}; opacity: .85;
+        }}
 
-    .badge{{display:inline-block;padding:2px 10px;border-radius:10px;font-weight:700;border:1px solid transparent;}}
-    .b-unit{{background:{blue_soft};color:{blue};border-color:rgba(37,99,235,.22);}}
-    .b-gate{{background:#f5eafe;color:{purple};border-color:rgba(124,58,237,.22);}}
-    .b-time{{background:#fff4e5;color:{amber};border-color:rgba(180,83,9,.22);}}
-    .b-dest{{background:#e6fbf9;color:{teal};border-color:rgba(13,148,136,.22);}}
+        .badge {{ display: inline-block; padding: 2px 10px; border-radius: 10px; font-weight: 700; border: 1px solid transparent; }}
+        .b-unit {{ background: {blue_soft}; color: {blue}; border-color: rgba(37,99,235,.22); }}
+        .b-gate {{ background: #f5eafe; color: {purple}; border-color: rgba(124,58,237,.22); }}
+        .b-time {{ background: #fff4e5; color: {amber}; border-color: rgba(180,83,9,.22); }}
+        .b-dest {{ background: #e6fbf9; color: {teal}; border-color: rgba(13,148,136,.22); }}
 
-    .transport-pill{{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;border:1px solid transparent;}}
-    .pill-train{{background:{red_bg};color:{red};border-color:rgba(239,68,68,.22);}}
-    .pill-car{{background:{green_bg};color:{green};border-color:rgba(22,163,74,.22);}}
+        .transport-pill {{ display:inline-block; padding: 2px 10px; border-radius: 999px; font-weight:700; border: 1px solid transparent; }}
+        .pill-train {{ background:{red_bg}; color:{red}; border-color: rgba(239,68,68,.22); }}
+        .pill-car   {{ background:{green_bg}; color:{green}; border-color: rgba(22,163,74,.22); }}
 
-    .soft-divider{{height:1px; background:linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,0)); margin:.8rem 0; }}
+        .soft-divider {{ height:1px; background: linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,0)); margin:.8rem 0; }}
 
-    /* Action menu trigger (tri točke) */
-    .more-btn > button {{
-        border-radius:12px; padding:.35rem .6rem; font-weight:900;
-    }}
+        .more-btn > button {{ border-radius:12px; padding:.35rem .6rem; font-weight:900; }}
 
-    /* Segmented theme toggle */
-    .segmented .stRadio > div{{display:flex; gap:6px}}
-    .segmented .stRadio label{{flex:1}}
-    .segmented .stRadio div[role="radiogroup"] > div{{flex:1}}
-    .segmented .stRadio input{{display:none}}
-    .segmented .stRadio div[role="radio"]{{border:1px solid {border}; border-radius:10px; padding:.4rem .6rem; text-align:center; cursor:pointer}}
-    .segmented .stRadio div[aria-checked="true"]{{background:{blue_soft}; color:{blue}; border-color:rgba(37,99,235,.35)}}
+        .segmented .stRadio > div {{ display:flex; gap:6px }}
+        .segmented .stRadio label {{ flex:1 }}
+        .segmented .stRadio div[role="radiogroup"] > div {{ flex:1 }}
+        .segmented .stRadio input {{ display:none }}
+        .segmented .stRadio div[role="radio"] {{ border:1px solid {border}; border-radius:10px; padding:.4rem .6rem; text-align:center; cursor:pointer }}
+        .segmented .stRadio div[aria-checked="true"] {{ background:{blue_soft}; color:{blue}; border-color:rgba(37,99,235,.35) }}
 
-    /* Inputs focus */
-    div[data-baseweb="select"] > div{{border-radius:10px;border-color:{border};box-shadow:none;}}
-    div[data-baseweb="select"] > div:focus-within{{border-color:rgba(22,163,74,.55);box-shadow:0 0 0 2px rgba(22,163,74,.25);}}
-    .stTextInput > div > div > input, .stTextArea textarea, .stTimeInput input{{border-radius:10px!important;}}
-    .stTextInput > div > div:has(input:focus), .stTextArea:has(textarea:focus), .stTimeInput:has(input:focus){{
-        box-shadow:0 0 0 2px rgba(37,99,235,.22); border-color:rgba(37,99,235,.55);
-    }}
+        div[data-baseweb="select"] > div {{ border-radius:10px; border-color:{border}; box-shadow:none; }}
+        div[data-baseweb="select"] > div:focus-within {{
+            border-color: rgba(22,163,74,.55); box-shadow: 0 0 0 2px rgba(22,163,74,.25);
+        }}
+        .stTextInput > div > div > input, .stTextArea textarea, .stTimeInput input {{ border-radius:10px !important; }}
+        .stTextInput > div > div:has(input:focus), .stTextArea:has(textarea:focus), .stTimeInput:has(input:focus) {{
+            box-shadow: 0 0 0 2px rgba(37,99,235,.22); border-color: rgba(37,99,235,.55);
+        }}
 
-    .table-header{{font-weight:800; opacity:.9; padding:.35rem 0; border-bottom:2px solid {blue}; margin-bottom:.25rem;}}
-    .date-badge{{display:inline-block; padding:4px 10px; border-radius:999px; background:{blue_soft}; color:{blue}; font-weight:800; border:1px solid {border};}}
-    .muted{{opacity:.6}}
+        .table-header {{ font-weight:800; opacity:.9; padding:.35rem 0; border-bottom:2px solid {blue}; margin-bottom:.25rem; }}
+        .date-badge {{ display:inline-block; padding:4px 10px; border-radius:999px; background:{blue_soft}; color:{blue}; font-weight:800; border:1px solid {border}; }}
+        .muted {{ opacity:.6 }}
 
-    /* Mobilno zbijenije */
-    @media (max-width: 640px){
-        .app-card{{padding:.8rem}}
-        .badge{{padding:2px 8px}}
-        .stButton > button{{padding:.45rem .8rem}}
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        @media (max-width: 640px) {{
+            .app-card {{ padding:.8rem }}
+            .badge {{ padding:2px 8px }}
+            .stButton > button {{ padding:.45rem .8rem }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    # JS: close dropdowns on outside click/ESC
+    # JS (bez f-string-a) – zatvori dropdown klikom vani/ESC
     components.html("""
         <script>
         (function(){
@@ -260,7 +255,8 @@ def upcoming_sort_key(t:str, base:date)->datetime:
         h,m=map(int,str(t).split(":")[:2]); dt=datetime.combine(base, time(h,m))
         if base==date.today() and dt<datetime.now(): dt+=timedelta(days=1)
         return dt
-    except: return datetime.max
+    except: 
+        return datetime.max
 
 def export_excel(df:pd.DataFrame)->bytes:
     out=BytesIO()
@@ -446,12 +442,12 @@ def render_list(df:pd.DataFrame):
         c[3].markdown(f"<span class='transport-pill {pill}'>{row['Transport Type']}</span>", unsafe_allow_html=True)
         c[4].markdown(f"<span class='badge b-dest'>{row['Destination']}</span>", unsafe_allow_html=True)
         c[5].markdown(row["Comment"] if str(row["Comment"]).strip() else '<span class="muted">—</span>', unsafe_allow_html=True)
-
+        do_edit=do_del=False
         with c[6]:
             st.markdown('<div class="more-btn">', unsafe_allow_html=True)
-            do_edit, do_del = action_menu(st, TXT["menu_more"])
+            de, dd = action_menu(st, TXT["menu_more"])
             st.markdown('</div>', unsafe_allow_html=True)
-
+            do_edit, do_del = de, dd
         st.markdown('</div></div>', unsafe_allow_html=True)
 
         if do_edit: st.session_state.edit_id=rid
@@ -481,10 +477,12 @@ def render_table(df:pd.DataFrame):
         c[3].markdown(f"<span class='transport-pill {pill}'>{row['Transport Type']}</span>", unsafe_allow_html=True)
         c[4].markdown(f"<span class='badge b-dest'>{row['Destination']}</span>", unsafe_allow_html=True)
         c[5].markdown(row["Comment"] if str(row["Comment"]).strip() else '<span class="muted">—</span>', unsafe_allow_html=True)
+        do_edit=do_del=False
         with c[6]:
             st.markdown('<div class="more-btn">', unsafe_allow_html=True)
-            do_edit, do_del = action_menu(st, TXT["menu_more"])
+            de, dd = action_menu(st, TXT["menu_more"])
             st.markdown('</div>', unsafe_allow_html=True)
+            do_edit, do_del = de, dd
         st.markdown('</div>', unsafe_allow_html=True)
 
         if do_edit: st.session_state.edit_id=rid
