@@ -336,19 +336,28 @@ if submitted:
 # =========================
 # ---- Filter & Sort -------
 # =========================
+# --- Filter & Sort UI ---
 st.markdown('<div class="app-card">', unsafe_allow_html=True)
 fc1, fc2 = st.columns([2, 1])
-search = fc1.text_input(TXT["filter"], placeholder="e.g., Stavanger")
+
+# Replace text input with dropdown
+search = fc1.selectbox(
+    TXT["filter"],
+    options=["All"] + [d for d in DESTINATIONS if d],
+    index=0,
+)
+
 sort_choice = fc2.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]])
 
+# Apply filtering
 filtered = data.copy()
-if search:
-    filtered = filtered[filtered["Destination"].astype(str).str.contains(search.strip(), case=False, na=False)]
+if search != "All":
+    filtered = filtered[filtered["Destination"] == search]
 
+# Apply sorting
 if sort_choice == TXT["sort_dest"]:
     filtered = filtered.sort_values(by=["Destination", "Departure Time"], kind="mergesort", na_position="last")
 else:
-    # Upcoming time first
     filtered = filtered.assign(_sortkey=filtered["Departure Time"].apply(upcoming_sort_key)) \
                        .sort_values(by=["_sortkey", "Destination"], kind="mergesort") \
                        .drop(columns=["_sortkey"])
