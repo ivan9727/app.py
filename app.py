@@ -154,7 +154,6 @@ def inject_css(dark: bool):
         """,
         unsafe_allow_html=True,
     )
-    )
 
 # =========================
 # ---- Util Functions -----
