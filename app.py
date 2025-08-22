@@ -4,16 +4,15 @@ import pandas as pd
 from datetime import datetime, date, time, timedelta
 from io import BytesIO
 
-# ---------------------
-# Config
-# ---------------------
+# =======================
+# App config
+# =======================
 st.set_page_config(page_title="Departures", page_icon="🚉", layout="wide")
-
 DB_PATH = "data.db"
 
-# ---------------------
-# i18n (EN/NO)
-# ---------------------
+# =======================
+# i18n (EN / NO) – bez HR u UI-u
+# =======================
 LANG = st.sidebar.selectbox("Language / Språk", ["English", "Norsk"], index=0)
 TXT = {
     "English": {
@@ -70,59 +69,49 @@ TXT = {
 
 DESTINATIONS = ["", "Førde", "Molde", "Haugesund", "Ålesund", "Trondheim", "Stavanger"]
 
-# ---------------------
-# CSS – dark by default, kompaktan „chip red“ (jedan red na mobu)
-# ---------------------
+# =======================
+# CSS – default dark, kompaktni „chips“ u jednom redu
+# =======================
 def inject_css():
-    st.markdown(f"""
+    st.markdown("""
     <style>
-    :root {{
-      --bg:#0e1116; --card:#12161d; --txt:#eaeaea; --bd: #26303a;
-      --chip-bg: rgba(255,255,255,.06); --chip-bd: #2b3642; --muted:.68;
+    :root {
+      --bg:#0e1116; --card:#12161d; --txt:#eaeaea; --bd:#26303a;
+      --chip-bg: rgba(255,255,255,.06); --chip-bd:#2b3642; --muted:.68;
       --green:#16a34a; --green-bg:#eaf7ef; --red:#ef4444; --red-bg:#fdecec; --blue:#2563eb; --blue-bg:#e8f0ff;
-    }}
-    body, .block-container {{ background:var(--bg) !important; color:var(--txt) !important; }}
+    }
+    body, .block-container { background:var(--bg)!important; color:var(--txt)!important; }
+    .stApp [data-testid="stHeader"]{ background:transparent; }
+    .stButton > button { border-radius:10px; font-weight:800; }
+    .stTextInput input, .stTextArea textarea, .stTimeInput input { border-radius:10px!important; }
 
-    .stApp [data-testid="stHeader"] {{ background:transparent; }}
-    .stButton > button {{ border-radius:10px; font-weight:800; }}
+    .tile{ border:1px solid var(--bd); background:var(--card); border-radius:14px;
+           padding:12px; margin-bottom:12px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 
-    .tile {{
-      border:1px solid var(--bd); background:var(--card); border-radius:14px;
-      padding:12px; margin-bottom:12px; box-shadow:0 6px 20px rgba(0,0,0,.25);
-    }}
+    /* jedan vodoravni red, s vodoravnim scrollom na uskim ekranima */
+    .chips-wrap{ overflow-x:auto; white-space:nowrap; padding-bottom:2px; }
+    .chip{ display:inline-flex; gap:6px; align-items:center; margin-right:8px;
+           padding:6px 10px; border-radius:10px; background:var(--chip-bg);
+           border:1px solid var(--chip-bd); font-weight:800; font-size:.95rem; }
+    .chip-strong{ background:var(--blue-bg); color:var(--blue); border-color:rgba(37,99,235,.25); }
+    .chip-green{ background:var(--green-bg); color:var(--green); border-color:rgba(22,163,74,.25); }
+    .chip-red{ background:var(--red-bg); color:var(--red); border-color:rgba(239,68,68,.25); }
 
-    /* kompaktni „chip red“ – sve u JEDNOM redu; na uskom ekranu scroll-x */
-    .chips-wrap {{
-      overflow-x:auto; white-space:nowrap; padding-bottom:2px;
-    }}
-    .chip {{
-      display:inline-flex; gap:6px; align-items:center;
-      margin-right:8px; padding:6px 10px; border-radius:10px;
-      background:var(--chip-bg); border:1px solid var(--chip-bd);
-      font-weight:800; font-size:0.95rem;
-    }}
-    .chip-strong {{ background:var(--blue-bg); color:var(--blue); border-color:rgba(37,99,235,.25); }}
-    .chip-green  {{ background:var(--green-bg); color:var(--green); border-color:rgba(22,163,74,.25); }}
-    .chip-red    {{ background:var(--red-bg);   color:var(--red);   border-color:rgba(239,68,68,.25); }}
+    .muted{ opacity:var(--muted); }
+    .more-btn > div > button { border-radius:10px; padding:.35rem .6rem; font-weight:900; }
+    div[data-testid="stPopoverBody"]{ min-width:320px; }
 
-    .muted {{ opacity:var(--muted) }}
-
-    /* 3 točke – malo veće, kontrastne */
-    .more-btn > div > button {{ border-radius:10px; padding:.35rem .6rem; font-weight:900; }}
-
-    /* popover tijelo šire radi filtera / akcija */
-    div[data-testid="stPopoverBody"] {{ min-width:320px; }}
-
-    /* inputi zaobljeni */
-    .stTextInput input, .stTextArea textarea, .stTimeInput input {{ border-radius:10px !important; }}
+    @media (max-width:480px){
+      .chip{ font-size:.88rem; padding:5px 8px; margin-right:6px; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
 inject_css()
 
-# ---------------------
+# =======================
 # DB
-# ---------------------
+# =======================
 def db():
     return sqlite3.connect(DB_PATH, check_same_thread=False)
 
@@ -143,9 +132,9 @@ def init_db():
         """)
 init_db()
 
-# ---------------------
+# =======================
 # Cache helpers
-# ---------------------
+# =======================
 @st.cache_data(show_spinner=False)
 def count_summary(day: str):
     with db() as con:
@@ -176,9 +165,9 @@ def export_day(day: str):
 def invalidate_caches():
     count_summary.clear(); get_page.clear(); export_day.clear()
 
-# ---------------------
+# =======================
 # CRUD
-# ---------------------
+# =======================
 def insert_row(day, unit, gate, tstr, transport, dest, comment):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with db() as con:
@@ -213,18 +202,18 @@ def delete_row(row_id):
         con.execute("DELETE FROM departures WHERE id=?", (row_id,))
     invalidate_caches()
 
-# ---------------------
+# =======================
 # State
-# ---------------------
+# =======================
 if "service_date" not in st.session_state: st.session_state.service_date = date.today()
 if "page" not in st.session_state: st.session_state.page = 1
 if "edit_id" not in st.session_state: st.session_state.edit_id = None
 
 PAGE_SIZE = st.sidebar.selectbox("Page size", [10, 25, 50, 100], index=1)
 
-# ---------------------
-# Sidebar: datum & summary
-# ---------------------
+# =======================
+# Sidebar: date & summary
+# =======================
 c1, c2 = st.sidebar.columns(2)
 if c1.button(TXT["prev_day"]): st.session_state.service_date -= timedelta(days=1); st.session_state.page=1
 if c2.button(TXT["today"]): st.session_state.service_date = date.today(); st.session_state.page=1
@@ -238,14 +227,27 @@ st.sidebar.subheader(TXT["count_title"])
 m1, m2, m3 = st.sidebar.columns(3)
 m1.metric(TXT["total"], total); m2.metric(TXT["train_count"], trains); m3.metric(TXT["car_count"], cars)
 
-# ---------------------
+# =======================
 # Title
-# ---------------------
+# =======================
 st.title(TXT["title"])
 
-# ---------------------
-# Register (Add) – auto clear nakon spremanja
-# ---------------------
+# =======================
+# AUTO-CLEAR nakon dodavanja (reset prije forme)
+# =======================
+from datetime import time as _t
+if st.session_state.get("add_clear_pending"):
+    st.session_state["add_unit"] = ""
+    st.session_state["add_gate"] = ""
+    st.session_state["add_time"] = _t(0, 0)     # ako želiš zadržati zadnje vrijeme – makni ovu liniju
+    st.session_state["add_dest"] = ""
+    st.session_state["add_transport"] = "Train"
+    st.session_state["add_comment"] = ""
+    st.session_state["add_clear_pending"] = False
+
+# =======================
+# Register (Add) – forma s keyevima
+# =======================
 st.subheader(TXT["register"])
 with st.form("add_form", clear_on_submit=False):
     a1, a2, a3, a4 = st.columns([1.2, 1, 1, 1.2])
@@ -260,7 +262,10 @@ with st.form("add_form", clear_on_submit=False):
     submit_add = st.form_submit_button(TXT["register"])
 
 if submit_add:
-    if not st.session_state.add_unit or not st.session_state.add_gate or not st.session_state.add_time or st.session_state.add_dest is None:
+    if (not st.session_state.add_unit or
+        not st.session_state.add_gate or
+        not st.session_state.add_time or
+        st.session_state.add_dest is None):
         st.warning(TXT["validation"])
     elif not st.session_state.add_gate.isdigit():
         st.warning(TXT["gate_digits_block"])
@@ -278,21 +283,14 @@ if submit_add:
             st.warning(TXT["duplicate"])
         else:
             st.success(TXT["saved"])
-            # Očisti formu + kratki rerun da UI bude prazan
-            st.session_state.add_unit = ""
-            st.session_state.add_gate = ""
-            from datetime import time as _t
-            st.session_state.add_time = _t(0,0)
-            st.session_state.add_dest = ""
-            st.session_state.add_transport = "Train"
-            st.session_state.add_comment = ""
+            st.session_state["add_clear_pending"] = True
             st.rerun()
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-# ---------------------
-# Filter (u malom popoveru)
-# ---------------------
+# =======================
+# Filter (popover)
+# =======================
 fc, _ = st.columns([1, 8])
 with fc.popover(TXT["filter"]):
     dest_filter = st.selectbox(TXT["destination"], ["All"] + [d for d in DESTINATIONS if d], index=0, key="flt_dest")
@@ -310,16 +308,16 @@ if st.session_state.get("flt_q","").strip():
     where_sql += " AND UPPER(unit_number) LIKE ?"; where_args += (f"%{st.session_state.flt_q.strip().upper()}%",)
 order_sql = " ORDER BY destination, departure_time" if st.session_state.get("flt_sort",TXT["sort_time"])==TXT["sort_dest"] else " ORDER BY departure_time, destination"
 
-# ---------------------
-# Page data (paginacija)
-# ---------------------
+# =======================
+# Page data (pagination)
+# =======================
 page = st.session_state.page
 df, total_filtered = get_page(day_str, where_sql, where_args, order_sql, page, PAGE_SIZE)
 max_page = max(1, (total_filtered + PAGE_SIZE - 1)//PAGE_SIZE)
 
-# ---------------------
-# TILE renderer – kompaktan jedan red (chips) + 3 točke (Edit/Delete)
-# ---------------------
+# =======================
+# Tile renderer – kompaktan red u jednom retku + 3 točke (popover)
+# =======================
 def render_tile(row):
     rid = int(row["id"])
     editing = (st.session_state.edit_id == rid)
@@ -327,7 +325,7 @@ def render_tile(row):
     st.markdown('<div class="tile">', unsafe_allow_html=True)
 
     if not editing:
-        # Jedan red čipova (scroll-x na uskom ekranu)
+        # prikaz – jedan vodoravni red s ključnim poljima
         st.markdown(
             f"""
             <div class="chips-wrap">
@@ -341,7 +339,7 @@ def render_tile(row):
         )
         st.markdown(f"<div class='muted' style='margin-top:6px'>{row['comment'] or '—'}</div>", unsafe_allow_html=True)
 
-        # 3 točke → popover s Edit/Delete
+        # 3 točke – poseban prozorčić (popover) s akcijama
         c1, _, _ = st.columns([0.2, 0.2, 6])
         with c1:
             with st.popover(TXT["menu_more"]):
@@ -351,7 +349,7 @@ def render_tile(row):
                 if a2.button(TXT["delete"], key=f"dl_{rid}"):
                     st.session_state[f"askdel_{rid}"] = True
 
-        # potvrda delete
+        # potvrda brisanja
         if st.session_state.get(f"askdel_{rid}"):
             st.warning(TXT["confirm_del"])
             d1, d2 = st.columns(2)
@@ -361,7 +359,7 @@ def render_tile(row):
                 st.session_state[f"askdel_{rid}"] = False
 
     else:
-        # INLINE EDIT – isti kvadrat
+        # INLINE EDIT – u istom tileu, s jednim Submitom (Save Edit)
         with st.form(f"edit_{rid}", clear_on_submit=False):
             e1, e2, e3, e4, e5 = st.columns([1.2,1,1,1.2,1.2])
             try:
@@ -405,9 +403,9 @@ def render_tile(row):
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------
+# =======================
 # Lista
-# ---------------------
+# =======================
 st.subheader(TXT["list"])
 if df.empty:
     st.info(TXT["none"])
@@ -420,9 +418,9 @@ else:
     if pc2.button(TXT["next"], disabled=(page>=max_page)): st.session_state.page = min(max_page, page+1)
     pc3.write(f"{TXT['page']} {page}/{max_page}")
 
-# ---------------------
+# =======================
 # Export
-# ---------------------
+# =======================
 st.markdown("<hr>", unsafe_allow_html=True)
 exp = export_day(day_str); empty = exp.empty
 c1, c2, c3 = st.columns([1,1,1])
