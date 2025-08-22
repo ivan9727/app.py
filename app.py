@@ -4,6 +4,7 @@ import os
 import uuid
 from datetime import datetime, date, time, timedelta
 from io import BytesIO
+import streamlit.components.v1 as components
 
 # =========================
 # ---- App Configuration ---
@@ -81,6 +82,10 @@ TXT = {
         "dark_mode": "Dark mode",
         "toast_deleted": "🗑️ Departure deleted.",
         "install_reportlab": 'Install <code>reportlab</code> for PDF export: <code>pip install reportlab</code>',
+        "view_mode": "View mode",
+        "view_list": "List",
+        "view_table": "Table",
+        "actions": "Actions",
     },
     "Norsk": {
         "title": "🚉 Avgangsregistreringssystem",
@@ -121,50 +126,163 @@ TXT = {
         "dark_mode": "Mørk modus",
         "toast_deleted": "🗑️ Avgang slettet.",
         "install_reportlab": 'Installer <code>reportlab</code> for PDF-eksport: <code>pip install reportlab</code>',
+        "view_mode": "Visning",
+        "view_list": "Liste",
+        "view_table": "Tabell",
+        "actions": "Handlinger",
     },
 }[LANG]
 
 # =========================
-# ---- Styles (CSS) -------
+# ---- Styles (CSS/JS) ----
 # =========================
 def inject_css(dark: bool):
-    base_bg = "#111315" if dark else "#fafafa"
-    base_fg = "#eaeaea" if dark else "#222222"
-    card_bg = "#1a1d1f" if dark else "#ffffff"
-    border = "#2a2f33" if dark else "#e8e8e8"
+    # suptilne akcent boje
+    green = "#16a34a"     # emerald-600
+    green_bg = "#eaf7ef"  # soft bg
+    red = "#ef4444"       # red-500
+    red_bg = "#fdecec"    # soft bg
+    gray_border = "#e8e8e8"
+
+    # Za dark – ručno definiramo; za light – default Streamlit boje
+    if dark:
+        base_bg = "#111315"
+        base_fg = "#eaeaea"
+        card_bg = "#171a1c"
+        border = "#2a2f33"
+        list_bg = "rgba(17,19,21,0.92)"  # dropdown
+        list_border = "#2c3237"
+        list_fg = "#f1f1f1"
+        shadow = "0 10px 30px rgba(0,0,0,0.45)"
+    else:
+        base_bg = "transparent"
+        base_fg = "inherit"
+        card_bg = "#ffffff"
+        border = gray_border
+        list_bg = "rgba(255,255,255,0.92)"  # dropdown
+        list_border = "#e6e6e6"
+        list_fg = "#222222"
+        shadow = "0 12px 28px rgba(0,0,0,0.12)"
 
     st.markdown(
         f"""
         <style>
-            body, .block-container {{
-                background-color: {base_bg} !important;
-                color: {base_fg} !important;
-            }}
-
-            label, .stTextInput label, .stSelectbox label, .stTimeInput label, .stTextArea label {{
-                color: {base_fg} !important;
-                font-weight: 600 !important;
-            }}
+            {"body, .block-container { background-color: %s !important; color: %s !important; }" % (base_bg, base_fg) if dark else ""}
 
             .app-card {{
                 background: {card_bg};
                 border: 1px solid {border};
                 padding: 1rem;
                 border-radius: 12px;
-                margin-bottom: 0.5rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 1px 0 rgba(0,0,0,0.02);
             }}
+
+            {".stMarkdown h1, .stMarkdown h2, .stMarkdown h3, label { color: %s !important; }" % base_fg if dark else ""}
 
             .transport-pill {{
-                display:inline-block; padding: 2px 8px; border-radius: 999px; font-weight:600;
+                display:inline-block; padding: 2px 10px; border-radius: 999px; font-weight:600; border: 1px solid transparent;
             }}
-            .pill-train {{ background:#ffe5e5; color:#6a0000; }}
-            .pill-car   {{ background:#e7ffe7; color:#064b00; }}
+            .pill-train {{ background:{red_bg}; color:{red}; border-color: rgba(239,68,68,0.22); }}
+            .pill-car   {{ background:{green_bg}; color:{green}; border-color: rgba(22,163,74,0.22); }}
 
-            .toggle-row button {{
-                border-radius: 8px !important;
-                padding: 0.5rem 0.9rem !important;
-                font-weight: 700 !important;
+            .stButton > button {{
+                border-radius: 10px !important;
                 border: 1px solid {border} !important;
+                padding: 0.45rem 0.9rem !important;
+                font-weight: 700 !important;
+                background: transparent;
+            }}
+            .stButton > button:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            }}
+
+            /* EDIT/DELETE stilovi po poziciji kolona u retku (7. i 8.) */
+            /* List view */
+            .row-line div[data-testid="column"]:nth-child(7) .stButton > button {{
+                background: {green_bg};
+                color: {green};
+                border-color: rgba(22,163,74,0.25) !important;
+            }}
+            .row-line div[data-testid="column"]:nth-child(7) .stButton > button:hover {{
+                background: rgba(22,163,74,0.15);
+            }}
+            .row-line div[data-testid="column"]:nth-child(8) .stButton > button {{
+                background: {red_bg};
+                color: {red};
+                border-color: rgba(239,68,68,0.25) !important;
+            }}
+            .row-line div[data-testid="column"]:nth-child(8) .stButton > button:hover {{
+                background: rgba(239,68,68,0.15);
+            }}
+
+            /* Table view – akcije su u zadnjoj koloni -> prva tipka (edit) zelena, druga (delete) crvena */
+            .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(1) > button {{
+                background: {green_bg};
+                color: {green};
+                border-color: rgba(22,163,74,0.25) !important;
+            }}
+            .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(1) > button:hover {{
+                background: rgba(22,163,74,0.15);
+            }}
+            .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(2) > button {{
+                background: {red_bg};
+                color: {red};
+                border-color: rgba(239,68,68,0.25) !important;
+            }}
+            .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(2) > button:hover {{
+                background: rgba(239,68,68,0.15);
+            }}
+
+            /* Dropdown (react-select) – proziran + blur */
+            div[role="listbox"] {{
+                background: {list_bg} !important;
+                -webkit-backdrop-filter: blur(6px);
+                backdrop-filter: blur(6px);
+                color: {list_fg};
+                border: 1px solid {list_border};
+                box-shadow: {shadow};
+                border-radius: 10px;
+            }}
+            div[role="option"] {{
+                padding-top: 8px !important;
+                padding-bottom: 8px !important;
+            }}
+            div[role="option"][aria-selected="true"],
+            div[role="option"]:hover {{
+                background: rgba(22,163,74,0.10) !important;
+            }}
+
+            /* Input/select container – blaga granica i fokus */
+            div[data-baseweb="select"] > div {{
+                border-radius: 10px;
+                border-color: {border};
+                box-shadow: none;
+            }}
+            div[data-baseweb="select"] > div:focus-within {{
+                border-color: rgba(22,163,74,0.55);
+                box-shadow: 0 0 0 2px rgba(22,163,74,0.25);
+            }}
+
+            /* Time i text inputi – uskladimo radius i fokus */
+            .stTextInput > div > div > input,
+            .stTextArea textarea,
+            .stTimeInput input {{
+                border-radius: 10px !important;
+            }}
+            .stTextInput > div > div:has(input:focus),
+            .stTextArea:has(textarea:focus),
+            .stTimeInput:has(input:focus) {{
+                box-shadow: 0 0 0 2px rgba(22,163,74,0.25);
+                border-color: rgba(22,163,74,0.55);
+            }}
+
+            /* Header "tabličnog" prikaza */
+            .table-header {{
+                font-weight: 700; opacity: 0.8; padding: 0.25rem 0;
+                border-bottom: 1px solid {gray_border};
+                margin-bottom: 0.25rem;
             }}
 
             .muted {{ opacity: 0.6; }}
@@ -172,6 +290,25 @@ def inject_css(dark: bool):
         """,
         unsafe_allow_html=True,
     )
+
+    # JS: zatvori otvorene dropdownove klikom vani ili ESC
+    components.html("""
+        <script>
+        (function(){
+            const closeOpenSelects = () => {
+                document.dispatchEvent(new KeyboardEvent('keydown', {key:'Escape'}));
+                document.querySelectorAll('div[data-baseweb="select"] input').forEach(i => i.blur());
+            };
+            document.addEventListener('click', function(e){
+                const isInside = e.target.closest('div[role="listbox"], div[data-baseweb="select"]');
+                if(!isInside){ closeOpenSelects(); }
+            }, true);
+            document.addEventListener('keydown', function(e){
+                if(e.key === 'Escape'){ closeOpenSelects(); }
+            });
+        })();
+        </script>
+    """, height=0)
 
 # =========================
 # ---- Util Functions -----
@@ -287,7 +424,7 @@ def export_pdf(df: pd.DataFrame) -> bytes | None:
                 c.showPage()
                 y = height - y_margin
                 c.setFont("Helvetica", 9)
-            c.drawString(x_margin, y, line[:240])  # sigurnosno skraćenje
+            c.drawString(x_margin, y, line[:240])
             y -= line_height
 
         c.showPage()
@@ -357,7 +494,6 @@ if submitted:
     if not unit_number.strip() or not gate.strip() or not departure_time_val or not destination or not st.session_state.get("transport_type"):
         st.warning(TXT["validation"])
     else:
-        # Duplicate check (Unit + Time + Destination)
         dep_str = departure_time_val.strftime("%H:%M")
         dup_mask = (data["Unit Number"].astype(str).str.strip() == unit_number.strip()) & \
                    (data["Departure Time"].astype(str).str.strip() == dep_str) & \
@@ -380,18 +516,20 @@ if submitted:
             st.success(TXT["saved"])
 
 # =========================
-# ---- Filter & Sort -------
+# ---- Filter & Sort + View -----
 # =========================
 st.markdown('<div class="app-card">', unsafe_allow_html=True)
-fc1, fc2 = st.columns([2, 1])
+top_l, top_m, top_r = st.columns([2, 1, 1])
 
-search = fc1.selectbox(
+search = top_l.selectbox(
     TXT["filter"],
     options=["All"] + [d for d in DESTINATIONS if d],
     index=0,
 )
 
-sort_choice = fc2.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]])
+sort_choice = top_m.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]])
+
+view_mode = top_r.selectbox(TXT["view_mode"], [TXT["view_list"], TXT["view_table"]], index=0)
 
 filtered = data.copy()
 if search != "All":
@@ -406,17 +544,21 @@ else:
 st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
-# ---- Departures List -----
+# ---- List View ----------
 # =========================
-st.subheader(TXT["list"])
-if filtered.empty:
-    st.info(TXT["none"])
-else:
-    for _, row in filtered.iterrows():
+def render_list_view(df: pd.DataFrame):
+    st.subheader(TXT["list"])
+    if df.empty:
+        st.info(TXT["none"])
+        return
+
+    for _, row in df.iterrows():
         real_id = row["ID"]
         wrap = st.container()
         with wrap:
-            c = st.columns([1.3, 1, 1, 1.2, 1.3, 2, 0.6, 0.6])
+            # klasa za stiliranje redaka (za targetiranje gumba po poziciji)
+            st.markdown('<div class="row-line">', unsafe_allow_html=True)
+            c = st.columns([1.3, 1, 1, 1.2, 1.3, 2, 0.65, 0.65])
             c[0].markdown(f"**{TXT['unit']}:** {row['Unit Number']}")
             c[1].markdown(f"**{TXT['gate']}:** {row['Gate']}")
             c[2].markdown(f"**{TXT['time']}:** {row['Departure Time']}")
@@ -427,28 +569,100 @@ else:
 
             edit_pressed = c[6].button(TXT["edit"], key=f"edit_{real_id}", use_container_width=True)
             del_pressed = c[7].button(TXT["delete"], key=f"del_{real_id}", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown('<hr style="margin:0.4rem 0; opacity:0.2;">', unsafe_allow_html=True)
+            st.markdown('<hr style="margin:0.4rem 0; opacity:0.15;">', unsafe_allow_html=True)
 
             if edit_pressed:
                 st.session_state.edit_id = real_id
-
             if del_pressed:
                 st.session_state.confirm_delete = real_id
 
-        # Delete confirmation
         if st.session_state.confirm_delete == real_id:
             with st.warning(TXT["confirm_title"]):
                 dc1, dc2 = st.columns(2)
                 if dc1.button(TXT["yes"], key=f"yes_{real_id}"):
-                    data = data[data["ID"] != real_id].reset_index(drop=True)
-                    save_data(data)
+                    df2 = st.session_state.get("_data_df", df).copy()
+                    df2 = df2[df2["ID"] != real_id].reset_index(drop=True)
+                    save_data(df2)
+                    st.session_state["_data_df"] = df2
                     st.session_state.confirm_delete = None
                     st.success(TXT["toast_deleted"])
                     st.rerun()
                 if dc2.button(TXT["no"], key=f"no_{real_id}"):
                     st.session_state.confirm_delete = None
                     st.rerun()
+
+# =========================
+# ---- Table View ----------
+# =========================
+def render_table_view(df: pd.DataFrame):
+    st.subheader(TXT["list"])
+    if df.empty:
+        st.info(TXT["none"])
+        return
+
+    # Header
+    st.markdown('<div class="table-header">', unsafe_allow_html=True)
+    h = st.columns([1.1, 0.9, 1.0, 1.0, 1.0, 2.0, 0.9])
+    h[0].markdown(TXT["unit"])
+    h[1].markdown(TXT["gate"])
+    h[2].markdown(TXT["time"])
+    h[3].markdown(TXT["transport"])
+    h[4].markdown(TXT["destination"])
+    h[5].markdown(TXT["comment"])
+    h[6].markdown(TXT["actions"])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Rows
+    for _, row in df.iterrows():
+        real_id = row["ID"]
+        st.markdown('<div class="table-row">', unsafe_allow_html=True)
+        c = st.columns([1.1, 0.9, 1.0, 1.0, 1.0, 2.0, 0.9])
+        c[0].write(row["Unit Number"])
+        c[1].write(row["Gate"])
+        c[2].write(row["Departure Time"])
+        pill_class = "pill-train" if row["Transport Type"] == "Train" else "pill-car"
+        c[3].markdown(f"<span class='transport-pill {pill_class}'>{row['Transport Type']}</span>", unsafe_allow_html=True)
+        c[4].write(row["Destination"])
+        c[5].markdown(row["Comment"] if str(row["Comment"]).strip() else '<span class="muted">—</span>', unsafe_allow_html=True)
+
+        with c[6]:
+            col_a, col_b = st.columns(2)
+            edit_pressed = col_a.button(TXT["edit"], key=f"t_edit_{real_id}", use_container_width=True)
+            del_pressed = col_b.button(TXT["delete"], key=f"t_del_{real_id}", use_container_width=True)
+
+        st.markdown('<hr style="margin:0.3rem 0; opacity:0.10;">', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        if edit_pressed:
+            st.session_state.edit_id = real_id
+        if del_pressed:
+            st.session_state.confirm_delete = real_id
+
+        if st.session_state.confirm_delete == real_id:
+            with st.warning(TXT["confirm_title"]):
+                dc1, dc2 = st.columns(2)
+                if dc1.button(TXT["yes"], key=f"t_yes_{real_id}"):
+                    df2 = st.session_state.get("_data_df", df).copy()
+                    df2 = df2[df2["ID"] != real_id].reset_index(drop=True)
+                    save_data(df2)
+                    st.session_state["_data_df"] = df2
+                    st.session_state.confirm_delete = None
+                    st.success(TXT["toast_deleted"])
+                    st.rerun()
+                if dc2.button(TXT["no"], key=f"t_no_{real_id}"):
+                    st.session_state.confirm_delete = None
+                    st.rerun()
+
+# =========================
+# ---- Render chosen view --
+# =========================
+st.session_state["_data_df"] = data  # referenca za delete prompt
+if view_mode == TXT["view_list"]:
+    render_list_view(filtered)
+else:
+    render_table_view(filtered)
 
 # =========================
 # ---- Edit Form -----------
@@ -482,7 +696,7 @@ if st.session_state.edit_id is not None and (data["ID"] == st.session_state.edit
 
         if et1.button(f"🚆 {TXT['train']}", key=f"edit_train_{idx}", use_container_width=True):
             st.session_state.edit_transport = "Train"
-        if et2.button(f"🚗 {TXT['car']}", key=f"edit_car_{idx}", use_container_width=True):
+        if et2.button(f"🚛 {TXT['car']}", key=f"edit_car_{idx}", use_container_width=True):
             st.session_state.edit_transport = "Car"
 
         sel_pill_class = "pill-train" if st.session_state.edit_transport == "Train" else "pill-car"
@@ -493,11 +707,9 @@ if st.session_state.edit_id is not None and (data["ID"] == st.session_state.edit
         save_changes = st.form_submit_button(TXT["save_changes"])
 
         if save_changes:
-            # validation
             if not unit_number.strip() or not gate.strip() or not departure_time_val or not destination or not st.session_state.edit_transport:
                 st.warning(TXT["validation"])
             else:
-                # Duplicate check excluding this ID
                 dep_str = departure_time_val.strftime("%H:%M")
                 dup_mask = (data["ID"] != data.loc[idx, "ID"]) & \
                            (data["Unit Number"].astype(str).str.strip() == unit_number.strip()) & \
