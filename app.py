@@ -10,8 +10,28 @@ from io import BytesIO
 st.set_page_config(page_title="Departures", page_icon="🚉", layout="wide")
 DB_PATH = "data.db"
 
+# --- Auto refresh svakih 30 s (30000 ms) ---
+try:
+    from streamlit import experimental_rerun  # just to ensure import exists
+    st.autorefresh = st.experimental_rerun  # no-op alias if st_autorefresh ne postoji
+except:
+    pass
+# ugrađeni helper (Streamlit >= 1.18): st_autorefresh
+try:
+    from streamlit.runtime.scriptrunner import add_script_run_ctx  # noqa
+    st_autorefresh = st.experimental_singleton  # dummy to avoid lint
+except:
+    pass
+# koristimo službeni API (od 1.22 dostupno)
+try:
+    from streamlit import st_autorefresh
+    st_autorefresh(interval=30000, key="auto_refresh_30s")
+except Exception:
+    # fallback: ništa – i dalje radi bez auto refresh-a
+    pass
+
 # =======================
-# i18n (EN / NO) – bez HR u UI-u
+# i18n (EN / NO)
 # =======================
 LANG = st.sidebar.selectbox("Language / Språk", ["English", "Norsk"], index=0)
 TXT = {
@@ -37,8 +57,8 @@ TXT = {
         "empty_export":"Nothing to export.",
         "gate_digits_live":"⚠️ Gate must contain digits only.",
         "gate_digits_block":"⚠️ Gate must be a number.",
-        "page":"Page", "prev":"Prev", "next":"Next",
         "menu_more":"⋯",
+        "auto_refresh_note":"Auto-refresh every 30s enabled.",
     },
     "Norsk": {
         "title": "🚉 Avganger",
@@ -62,15 +82,15 @@ TXT = {
         "empty_export":"Ingenting å eksportere.",
         "gate_digits_live":"⚠️ Luke må kun inneholde tall.",
         "gate_digits_block":"⚠️ Luke må være et tall.",
-        "page":"Side", "prev":"Forrige", "next":"Neste",
         "menu_more":"⋯",
+        "auto_refresh_note":"Auto-oppdatering hvert 30s er aktiv.",
     }
 }[LANG]
 
 DESTINATIONS = ["", "Førde", "Molde", "Haugesund", "Ålesund", "Trondheim", "Stavanger"]
 
 # =======================
-# CSS – default dark, kompaktni „chips“ u jednom redu
+# CSS – dark & kompaktni chip red
 # =======================
 def inject_css():
     st.markdown("""
@@ -88,7 +108,6 @@ def inject_css():
     .tile{ border:1px solid var(--bd); background:var(--card); border-radius:14px;
            padding:12px; margin-bottom:12px; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 
-    /* jedan vodoravni red, s vodoravnim scrollom na uskim ekranima */
     .chips-wrap{ overflow-x:auto; white-space:nowrap; padding-bottom:2px; }
     .chip{ display:inline-flex; gap:6px; align-items:center; margin-right:8px;
            padding:6px 10px; border-radius:10px; background:var(--chip-bg);
@@ -133,9 +152,9 @@ def init_db():
 init_db()
 
 # =======================
-# Cache helpers
+# Cache helpers (TTL za multi-device osvježavanje)
 # =======================
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=15)
 def count_summary(day: str):
     with db() as con:
         total = con.execute("SELECT COUNT(*) FROM departures WHERE service_date=?", (day,)).fetchone()[0]
@@ -143,19 +162,16 @@ def count_summary(day: str):
         cars   = con.execute("SELECT COUNT(*) FROM departures WHERE service_date=? AND transport_type='Car'", (day,)).fetchone()[0]
     return total, trains, cars
 
-@st.cache_data(show_spinner=False)
-def get_page(day: str, where_sql: str, where_args: tuple, order_sql: str, page: int, page_size: int):
-    off = (page-1)*page_size
-    sql = f"SELECT * FROM departures WHERE service_date=? {where_sql} {order_sql} LIMIT ? OFFSET ?"
-    args = (day, *where_args, page_size, off)
+@st.cache_data(show_spinner=False, ttl=15)
+def get_rows(day: str, where_sql: str, where_args: tuple, order_sql: str):
+    sql = f"SELECT * FROM departures WHERE service_date=? {where_sql} {order_sql}"
     with db() as con:
-        cur = con.execute(sql, args)
+        cur = con.execute(sql, (day, *where_args))
         cols = [c[0] for c in cur.description]
         rows = cur.fetchall()
-        total = con.execute(f"SELECT COUNT(*) FROM departures WHERE service_date=? {where_sql}", (day, *where_args)).fetchone()[0]
-    return pd.DataFrame(rows, columns=cols), total
+    return pd.DataFrame(rows, columns=cols)
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=15)
 def export_day(day: str):
     with db() as con:
         cur = con.execute("SELECT * FROM departures WHERE service_date=? ORDER BY departure_time, destination", (day,))
@@ -163,7 +179,7 @@ def export_day(day: str):
         return pd.DataFrame(cur.fetchall(), columns=cols)
 
 def invalidate_caches():
-    count_summary.clear(); get_page.clear(); export_day.clear()
+    count_summary.clear(); get_rows.clear(); export_day.clear()
 
 # =======================
 # CRUD
@@ -206,26 +222,24 @@ def delete_row(row_id):
 # State
 # =======================
 if "service_date" not in st.session_state: st.session_state.service_date = date.today()
-if "page" not in st.session_state: st.session_state.page = 1
 if "edit_id" not in st.session_state: st.session_state.edit_id = None
-
-PAGE_SIZE = st.sidebar.selectbox("Page size", [10, 25, 50, 100], index=1)
 
 # =======================
 # Sidebar: date & summary
 # =======================
 c1, c2 = st.sidebar.columns(2)
-if c1.button(TXT["prev_day"]): st.session_state.service_date -= timedelta(days=1); st.session_state.page=1
-if c2.button(TXT["today"]): st.session_state.service_date = date.today(); st.session_state.page=1
+if c1.button(TXT["prev_day"]): st.session_state.service_date -= timedelta(days=1)
+if c2.button(TXT["today"]): st.session_state.service_date = date.today()
 picked = st.sidebar.date_input(TXT["service_date"], value=st.session_state.service_date)
 if picked != st.session_state.service_date:
-    st.session_state.service_date = picked; st.session_state.page = 1
+    st.session_state.service_date = picked
 
 day_str = st.session_state.service_date.strftime("%Y-%m-%d")
 total, trains, cars = count_summary(day_str)
 st.sidebar.subheader(TXT["count_title"])
 m1, m2, m3 = st.sidebar.columns(3)
 m1.metric(TXT["total"], total); m2.metric(TXT["train_count"], trains); m3.metric(TXT["car_count"], cars)
+st.sidebar.caption(TXT["auto_refresh_note"])
 
 # =======================
 # Title
@@ -239,14 +253,14 @@ from datetime import time as _t
 if st.session_state.get("add_clear_pending"):
     st.session_state["add_unit"] = ""
     st.session_state["add_gate"] = ""
-    st.session_state["add_time"] = _t(0, 0)     # ako želiš zadržati zadnje vrijeme – makni ovu liniju
+    st.session_state["add_time"] = _t(0, 0)   # makni želiš li zadržati prošlo vrijeme
     st.session_state["add_dest"] = ""
     st.session_state["add_transport"] = "Train"
     st.session_state["add_comment"] = ""
     st.session_state["add_clear_pending"] = False
 
 # =======================
-# Register (Add) – forma s keyevima
+# Register (Add)
 # =======================
 st.subheader(TXT["register"])
 with st.form("add_form", clear_on_submit=False):
@@ -298,7 +312,6 @@ with fc.popover(TXT["filter"]):
     quick = st.text_input(TXT["search_unit"], key="flt_q")
     if st.button(TXT["clear"]):
         st.session_state.flt_dest="All"; st.session_state.flt_sort=TXT["sort_time"]; st.session_state.flt_q=""
-        st.session_state.page = 1
 
 # SQL filter/order
 where_sql, where_args = "", ()
@@ -309,14 +322,12 @@ if st.session_state.get("flt_q","").strip():
 order_sql = " ORDER BY destination, departure_time" if st.session_state.get("flt_sort",TXT["sort_time"])==TXT["sort_dest"] else " ORDER BY departure_time, destination"
 
 # =======================
-# Page data (pagination)
+# Dohvati SVE filtrirane redove (nema paginacije)
 # =======================
-page = st.session_state.page
-df, total_filtered = get_page(day_str, where_sql, where_args, order_sql, page, PAGE_SIZE)
-max_page = max(1, (total_filtered + PAGE_SIZE - 1)//PAGE_SIZE)
+df = get_rows(day_str, where_sql, where_args, order_sql)
 
 # =======================
-# Tile renderer – kompaktan red u jednom retku + 3 točke (popover)
+# Tile renderer – kompaktan red + 3 točke
 # =======================
 def render_tile(row):
     rid = int(row["id"])
@@ -325,7 +336,6 @@ def render_tile(row):
     st.markdown('<div class="tile">', unsafe_allow_html=True)
 
     if not editing:
-        # prikaz – jedan vodoravni red s ključnim poljima
         st.markdown(
             f"""
             <div class="chips-wrap">
@@ -339,7 +349,7 @@ def render_tile(row):
         )
         st.markdown(f"<div class='muted' style='margin-top:6px'>{row['comment'] or '—'}</div>", unsafe_allow_html=True)
 
-        # 3 točke – poseban prozorčić (popover) s akcijama
+        # 3 točke – popover s Edit/Delete
         c1, _, _ = st.columns([0.2, 0.2, 6])
         with c1:
             with st.popover(TXT["menu_more"]):
@@ -349,7 +359,6 @@ def render_tile(row):
                 if a2.button(TXT["delete"], key=f"dl_{rid}"):
                     st.session_state[f"askdel_{rid}"] = True
 
-        # potvrda brisanja
         if st.session_state.get(f"askdel_{rid}"):
             st.warning(TXT["confirm_del"])
             d1, d2 = st.columns(2)
@@ -359,7 +368,7 @@ def render_tile(row):
                 st.session_state[f"askdel_{rid}"] = False
 
     else:
-        # INLINE EDIT – u istom tileu, s jednim Submitom (Save Edit)
+        # INLINE EDIT unutar istog tile-a
         with st.form(f"edit_{rid}", clear_on_submit=False):
             e1, e2, e3, e4, e5 = st.columns([1.2,1,1,1.2,1.2])
             try:
@@ -412,11 +421,6 @@ if df.empty:
 else:
     for _, r in df.iterrows():
         render_tile(r)
-
-    pc1, pc2, pc3, _ = st.columns([0.6,0.6,2,6])
-    if pc1.button(TXT["prev"], disabled=(page<=1)): st.session_state.page = max(1, page-1)
-    if pc2.button(TXT["next"], disabled=(page>=max_page)): st.session_state.page = min(max_page, page+1)
-    pc3.write(f"{TXT['page']} {page}/{max_page}")
 
 # =======================
 # Export
