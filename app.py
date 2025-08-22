@@ -19,7 +19,7 @@ DATA_FILE = "departures.csv"
 COLS = [
     "ID", "Service Date", "Unit Number", "Gate",
     "Departure Time", "Transport Type", "Destination",
-    "Comment", "Has Box", "Box Confirmed", "Created At"
+    "Comment", "Created At"
 ]
 
 DESTINATIONS = ["", "Førde", "Molde", "Haugesund", "Ålesund", "Trondheim", "Stavanger"]
@@ -47,7 +47,7 @@ TXT = {
         "duplicate":"⚠️ Same Unit + Time + Destination already exists for this day.",
         "export_csv":"Export CSV", "export_xlsx":"Export Excel", "export_pdf":"Export PDF",
         "count_title":"Summary", "total":"Total", "train_count":"Train", "car_count":"Car",
-        "save_changes":"Save",
+        "save_changes":"Save Edit",
         "toast_deleted":"Deleted.",
         "service_date":"Service date", "today":"Today", "prev_day":"◀ Yesterday",
         "search_unit":"Quick search",
@@ -56,8 +56,6 @@ TXT = {
         "gate_digits_live":"⚠️ Gate must contain digits only.",
         "gate_digits_block":"⚠️ Gate must be a number.",
         "menu_more":"⋯",
-        "box":"Box", "has_box":"Has Box", "confirm_box":"Confirm Box", "unconfirm_box":"Undo Box",
-        "bulk_confirm":"Confirm all boxes for this day",
         "filter_title":"Filters",
         "clear_filters":"Clear",
     },
@@ -78,7 +76,7 @@ TXT = {
         "duplicate":"⚠️ Samme enhet + tid + destinasjon finnes allerede for denne dagen.",
         "export_csv":"Eksporter CSV", "export_xlsx":"Eksporter Excel", "export_pdf":"Eksporter PDF",
         "count_title":"Oppsummering", "total":"Totalt", "train_count":"Tog", "car_count":"Bil",
-        "save_changes":"Lagre",
+        "save_changes":"Lagre endring",
         "toast_deleted":"Slettet.",
         "service_date":"Dato", "today":"I dag", "prev_day":"◀ I går",
         "search_unit":"Hurtigsøk",
@@ -87,53 +85,44 @@ TXT = {
         "gate_digits_live":"⚠️ Luke må kun inneholde tall.",
         "gate_digits_block":"⚠️ Luke må være et tall.",
         "menu_more":"⋯",
-        "box":"Boks", "has_box":"Har boks", "confirm_box":"Bekreft boks", "unconfirm_box":"Angre boks",
-        "bulk_confirm":"Bekreft alle bokser for dagen",
         "filter_title":"Filtere",
-        "clear_filters":"Očisti",
+        "clear_filters":"Nullstill",
     },
 }[LANG]
 
 # =========================
-# CSS / JS (modern & simple)
+# CSS / JS – moderno i jednostavno
 # =========================
 def inject_css(theme: str):
     green="#16a34a"; green_bg="#eaf7ef"
     red="#ef4444"; red_bg="#fdecec"
     blue="#2563eb"; blue_soft="#e8f0ff"
-    slate="#0f172a"; gray_border="#e8e8e8"
+    gray_border="#e8e8e8"
 
     dark = (theme=="Dark")
-    light = (theme=="Light")
-
     if dark:
         base_bg="#0e1116"; base_fg="#eaeaea"; card_bg="#12161d"; border="#26303a"
         chip_bg="rgba(255,255,255,.06)"; chip_fg="#e9eef6"
-        glow="0 8px 30px rgba(0,0,0,.45)"
+        glow="0 8px 26px rgba(0,0,0,.35)"
     else:
-        base_bg="#ffffff"; base_fg="#222"; card_bg="#ffffff"; border=gray_border
+        base_bg="#ffffff"; base_fg="#222222"; card_bg="#ffffff"; border=gray_border
         chip_bg="rgba(2,6,23,.04)"; chip_fg="#16202a"
-        glow="0 10px 26px rgba(0,0,0,.12)"
+        glow="0 10px 22px rgba(0,0,0,.10)"
 
     st.markdown(
         f"""
         <style>
         body, .block-container {{ background:{base_bg} !important; color:{base_fg} !important; }}
 
-        /* header */
         .block-container > div:first-child h1 {{
             padding:10px 14px; border-radius:12px;
             border:1px solid {border};
             background:linear-gradient(90deg, rgba(37,99,235,0.08), rgba(22,163,74,0.08));
         }}
 
-        /* modern simple row card (tile) */
         .tile {{
             border:1px solid {border}; border-radius:14px; background:{card_bg};
-            padding:12px 12px; margin-bottom:10px; box-shadow:{glow};
-        }}
-        .tile-header {{
-            display:flex; align-items:center; gap:10px; justify-content:space-between; margin-bottom:8px;
+            padding:12px 12px; margin-bottom:12px; box-shadow:{glow};
         }}
         .tile-chips {{ display:flex; flex-wrap:wrap; gap:8px; }}
         .chip {{
@@ -146,22 +135,14 @@ def inject_css(theme: str):
         .chip-success {{ background:{green_bg}; color:{green}; border-color:rgba(22,163,74,.25); }}
         .chip-danger {{ background:{red_bg}; color:{red}; border-color:rgba(239,68,68,.25); }}
 
-        .tile-footer {{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:6px; }}
-        .muted {{ opacity:.65; }}
-
         .soft-divider {{ height:1px; background:linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,0)); margin:.8rem 0; }}
 
-        /* buttons */
         .stButton > button {{ border-radius:10px; font-weight:800; }}
         .more-btn > button {{ padding:.35rem .6rem; font-weight:900; border-radius:10px; }}
 
-        /* inputs */
         .stTextInput input, .stTextArea textarea, .stTimeInput input {{ border-radius:10px !important; }}
-
-        /* popover for filters */
         div[data-testid="stPopoverBody"] {{ min-width:320px; }}
 
-        /* mobile layout tweaks */
         @media (max-width: 900px) {{
             .tile-chips {{ gap:6px; }}
         }}
@@ -170,7 +151,6 @@ def inject_css(theme: str):
         unsafe_allow_html=True,
     )
 
-    # JS: close select drop-downs click-out/ESC (smanjuje lag)
     components.html("""
         <script>
         (function(){
@@ -199,14 +179,10 @@ def load_csv(path:str)->pd.DataFrame:
         df.to_csv(path, index=False)
         return df
     df=pd.read_csv(path)
-    # ensure cols (and migrate)
-    if "Has Box" not in df.columns: df["Has Box"]=False
-    if "Box Confirmed" not in df.columns: df["Box Confirmed"]=False
     for c in COLS:
         if c not in df.columns:
             if c=="ID": df[c]=[str(uuid.uuid4()) for _ in range(len(df))] if len(df) else []
             elif c=="Created At": df[c]=pd.NaT
-            elif c in ("Has Box","Box Confirmed"): df[c]=False
             elif c=="Service Date": df[c]=date.today().strftime("%Y-%m-%d")
             else: df[c]=""
     # normalize
@@ -221,13 +197,11 @@ def load_csv(path:str)->pd.DataFrame:
         df["Service Date"]=pd.to_datetime(df["Service Date"], errors="coerce").dt.date.astype(str)
     except:
         df["Service Date"]=df["Service Date"].astype(str)
-    df["Has Box"]=df["Has Box"].fillna(False).astype(bool)
-    df["Box Confirmed"]=df["Box Confirmed"].fillna(False).astype(bool)
     return df[COLS]
 
 def save_csv(df:pd.DataFrame):
     df.to_csv(DATA_FILE, index=False)
-    load_csv.clear()  # invalidiraj cache
+    load_csv.clear()  # invalidacija cache-a (brz reload)
 
 @st.cache_data(show_spinner=False)
 def compute_known_units(df:pd.DataFrame):
@@ -252,7 +226,7 @@ inject_css(theme_map.get(theme_pick,"Light"))
 st.title(TXT["title"])
 data = load_csv(DATA_FILE)
 
-# Date controls (jednostavno)
+# Date controls
 with st.sidebar:
     c1,c2=st.columns(2)
     if c1.button(TXT["prev_day"]): st.session_state.service_date-=timedelta(days=1); st.rerun()
@@ -264,7 +238,7 @@ day_str = st.session_state.service_date.strftime("%Y-%m-%d")
 day_data = data[data["Service Date"]==day_str].reset_index(drop=True)
 known_units = compute_known_units(data)
 
-# Summary (sidebar)
+# Summary
 with st.sidebar:
     st.subheader(TXT["count_title"])
     c1,c2,c3=st.columns(3)
@@ -273,7 +247,7 @@ with st.sidebar:
     c3.metric(TXT["car_count"], int((day_data["Transport Type"]=="Car").sum()))
 
 # =========================
-# Register (brže, minimalno)
+# Register – brzo i bez reruna kad ne treba
 # =========================
 st.subheader(TXT["register"])
 with st.form("register_form", clear_on_submit=False):
@@ -286,11 +260,10 @@ with st.form("register_form", clear_on_submit=False):
     dest_new = c4.selectbox(TXT["destination"]+" *", DESTINATIONS, index=0)
     c5,c6 = st.columns([1,3])
     transport_new = c5.radio(TXT["transport"]+" *", ["Train","Car"], horizontal=True)
-    has_box_new = c6.checkbox(TXT["has_box"], value=False)
     comment_new = st.text_area(TXT["comment"], height=64)
     submit_add = st.form_submit_button(TXT["register"])
 
-# suggestions (izvan forme)
+# suggestions
 if st.session_state.get("unit_number_new"):
     pref = st.session_state.unit_number_new.upper()
     sugs = [u for u in known_units if u.startswith(pref)]
@@ -325,21 +298,18 @@ if submit_add:
                 "Transport Type": transport_new,
                 "Destination": dest_new.strip(),
                 "Comment": comment_new.strip(),
-                "Has Box": bool(has_box_new),
-                "Box Confirmed": False,
                 "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }])
+            # brzo: update u memoriji pa spremi, bez dodatnih izračuna
             data = pd.concat([data, row], ignore_index=True)
             save_csv(data)
             st.success(TXT["saved"])
 
 # =========================
-# Filter (u malom popoveru)
+# Filter (mali popover)
 # =========================
-st.markdown(" ")
-fcol1, fcol2 = st.columns([1,8])
+fcol1, _ = st.columns([1,8])
 with fcol1.popover(TXT["filter"]):
-    # sve “skriveno” u mali prozorčić – jednostavnije za ekran
     dest_filter = st.selectbox(TXT["destination"], ["All"]+[d for d in DESTINATIONS if d], index=0, key="flt_dest")
     sort_choice = st.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]], key="flt_sort")
     quick = st.text_input(TXT["search_unit"], key="flt_q")
@@ -347,14 +317,12 @@ with fcol1.popover(TXT["filter"]):
         st.session_state.flt_dest="All"; st.session_state.flt_sort=TXT["sort_time"]; st.session_state.flt_q=""
         st.rerun()
 
-# primijeni filter (brzo, bez dodatnih rerunova)
 filtered = day_data.copy()
 if st.session_state.get("flt_dest","All") != "All":
     filtered = filtered[filtered["Destination"]==st.session_state.flt_dest]
 q = st.session_state.get("flt_q","").strip()
 if q:
     filtered = filtered[filtered["Unit Number"].astype(str).str.contains(q, case=False, na=False)]
-
 if st.session_state.get("flt_sort", TXT["sort_time"]) == TXT["sort_dest"]:
     filtered = filtered.sort_values(["Destination","Departure Time"], kind="mergesort", na_position="last")
 else:
@@ -373,112 +341,87 @@ else:
                        .drop(columns=["_k"])
 
 # =========================
-# Bulk: Confirm all boxes for the day
-# =========================
-if not filtered.empty and (filtered["Has Box"] & ~filtered["Box Confirmed"]).any():
-    if st.button("✅ " + TXT["bulk_confirm"]):
-        ids = filtered.loc[(filtered["Has Box"]) & (~filtered["Box Confirmed"]), "ID"]
-        if not ids.empty:
-            ix = data["ID"].isin(ids)
-            data.loc[ix,"Box Confirmed"] = True
-            save_csv(data)
-            st.success("OK")
-            st.rerun()
-
-# =========================
-# Modern simple TILE + inline edit
+# Row renderer – moderan “tile”
 # =========================
 def render_row(row: pd.Series):
     rid = row["ID"]
-    has_box = bool(row.get("Has Box", False))
-    box_ok = bool(row.get("Box Confirmed", False))
 
-    # header (chips)
+    # DISPLAY ili EDIT način – sve u istom tile-u
+    editing = (st.session_state.inline_edit_id == rid)
+
     st.markdown('<div class="tile">', unsafe_allow_html=True)
-    h1, h2 = st.columns([8,1])
-    with h1:
+
+    if not editing:
+        # prikaz (čitanje)
         st.markdown(
             f"""
-            <div class="tile-header">
-              <div class="tile-chips">
-                 <span class="chip chip-strong">{row['Unit Number']}</span>
-                 <span class="chip">{TXT['gate']}: {row['Gate']}</span>
-                 <span class="chip">{TXT['time']}: <b>{row['Departure Time']}</b></span>
-                 <span class="chip {'chip-danger' if row['Transport Type']=='Train' else 'chip-success'}">{row['Transport Type']}</span>
-                 <span class="chip">{row['Destination'] or '—'}</span>
-                 <span class="chip">{TXT['box']}: {('✅' if has_box else '—')}</span>
-                 <span class="chip">{'Confirmed ✅' if box_ok else 'Pending ⏳'}</span>
-              </div>
+            <div class="tile-chips">
+               <span class="chip chip-strong">{row['Unit Number']}</span>
+               <span class="chip">{TXT['gate']}: {row['Gate']}</span>
+               <span class="chip">{TXT['time']}: <b>{row['Departure Time']}</b></span>
+               <span class="chip {'chip-danger' if row['Transport Type']=='Train' else 'chip-success'}">{row['Transport Type']}</span>
+               <span class="chip">{row['Destination'] or '—'}</span>
             </div>
             """,
             unsafe_allow_html=True
         )
-    with h2:
-        # mali meni
-        with st.popover(TXT["menu_more"]):
-            cA,cB = st.columns(2)
-            if cA.button(TXT["edit"], key=f"ed_{rid}"):
-                st.session_state.inline_edit_id = rid
-            if cB.button(TXT["delete"], key=f"dl_{rid}"):
-                st.session_state.confirm_delete = rid
+        st.markdown(
+            f"""<div style="margin-top:6px;" class="muted">{(row['Comment'] if str(row['Comment']).strip() not in ('', 'nan', 'None') else '—')}</div>""",
+            unsafe_allow_html=True
+        )
+        # akcije (izvan forme)
+        a1,a2,a3 = st.columns([0.2,0.2,6])
+        if a1.button(TXT["edit"], key=f"ed_{rid}"):
+            st.session_state.inline_edit_id = rid
+        if a2.button(TXT["delete"], key=f"dl_{rid}"):
+            st.session_state.confirm_delete = rid
 
-    # comment & actions line
-    st.markdown(
-        f"""<div class="tile-footer">
-              <div class="muted">{(row['Comment'] or '—')}</div>
-              <div></div>
-            </div>""",
-        unsafe_allow_html=True
-    )
-
-    # inline edit (u istom tile-u, bez novog prozorčića)
-    if st.session_state.inline_edit_id == rid:
+    else:
+        # EDIT – widgeti “na istom mjestu”
         with st.form(f"edit_{rid}", clear_on_submit=False):
             c1,c2,c3,c4,c5 = st.columns([1.2,0.9,0.9,1.2,1.2])
-            # date
+
+            # datum
             try:
                 cur_day = datetime.strptime(str(row["Service Date"]), "%Y-%m-%d").date()
             except:
                 cur_day = st.session_state.service_date
             dval = c1.date_input(TXT["service_date"], value=cur_day, key=f"d_{rid}")
-            # unit
+
+            # unit/gate/time/dest
             uval = c2.text_input(TXT["unit"], value=str(row["Unit Number"]), key=f"u_{rid}")
-            # gate
             gval = c3.text_input(TXT["gate"], value=str(row["Gate"]), key=f"g_{rid}")
             if gval and not gval.isdigit():
                 st.warning(TXT["gate_digits_live"])
-            # time
             try:
                 hh,mm = str(row["Departure Time"]).split(":")
                 t_default = time(int(hh), int(mm))
             except:
                 t_default = None
             tval = c4.time_input(TXT["time"], value=t_default, step=timedelta(minutes=5), key=f"t_{rid}")
-            # dest
             dsel = c5.selectbox(TXT["destination"], DESTINATIONS,
                                 index=max(0, DESTINATIONS.index(str(row["Destination"])) if str(row["Destination"]) in DESTINATIONS else 0),
                                 key=f"ds_{rid}")
 
-            c6,c7,c8 = st.columns([1,1,3])
+            c6,c7 = st.columns([1,5])
             trval = c6.radio(TXT["transport"], ["Train","Car"], horizontal=True,
                              index=0 if row["Transport Type"]=="Train" else 1, key=f"tr_{rid}")
-            hbval = c7.checkbox(TXT["has_box"], value=has_box, key=f"hb_{rid}")
-            cb_btn = c8.button(("✅ "+TXT["confirm_box"]) if not box_ok else ("↩ "+TXT["unconfirm_box"]), key=f"cb_{rid}")
+            com = st.text_area(TXT["comment"], value=str(row["Comment"]) if str(row["Comment"]) not in ("nan","None") else "", height=64, key=f"c_{rid}")
 
-            com = st.text_area(TXT["comment"], value=str(row["Comment"]), height=64, key=f"c_{rid}")
+            # samo jedan submit u formi -> nema greške `st.button in form`
             sbtn = st.form_submit_button(TXT["save_changes"])
 
-        # potvrda box-a (bez submit-a)
-        if cb_btn:
-            idx = data.index[data["ID"]==rid][0]
-            if hbval:
-                data.loc[idx,"Has Box"]=True
-                data.loc[idx,"Box Confirmed"]=not box_ok
-                save_csv(data); st.success("OK"); st.rerun()
-            else:
-                st.info(TXT["has_box"]+"?")
+        # autocomplete (izvan forme)
+        if st.session_state.get(f"u_{rid}"):
+            pref = st.session_state[f"u_{rid}"].upper()
+            sugs = [u for u in known_units if u.startswith(pref)]
+            if sugs:
+                cc = st.columns(min(6,len(sugs)))
+                for i,sug in enumerate(sugs[:12]):
+                    if cc[i%6].button(sug, key=f"sug_inline_{rid}_{sug}"):
+                        st.session_state[f"u_{rid}"]=sug
+                        st.rerun()
 
-        # inline spremanje
         if sbtn:
             if not uval or not gval.strip() or not tval or not dsel:
                 st.warning(TXT["validation"])
@@ -497,8 +440,8 @@ def render_row(row: pd.Series):
                 else:
                     idx = data.index[data["ID"]==rid][0]
                     data.loc[idx, ["Service Date","Unit Number","Gate","Departure Time","Transport Type",
-                                   "Destination","Comment","Has Box"]] = [
-                        new_day, uval.strip().upper(), gval.strip(), dep_str, trval, str(dsel).strip(), com.strip(), bool(hbval)
+                                   "Destination","Comment"]] = [
+                        new_day, uval.strip().upper(), gval.strip(), dep_str, trval, str(dsel).strip(), com.strip()
                     ]
                     save_csv(data); st.success(TXT["updated"])
                     st.session_state.inline_edit_id=None
@@ -514,9 +457,11 @@ def render_row(row: pd.Series):
         if cx2.button(TXT["no"], key=f"nn_{rid}"):
             st.session_state.confirm_delete=None; st.rerun()
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # /tile
 
-# render lista
+# =========================
+# Lista
+# =========================
 st.subheader(TXT["list"])
 if filtered.empty:
     st.info(TXT["none"])
