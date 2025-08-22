@@ -294,42 +294,45 @@ st.subheader(TXT["register"])
 
 form_cols = st.columns([1, 1, 1, 1])
 # --- Registration form ---
+# --- Registration Form (Simplified) ---
+st.markdown('<div class="app-card">', unsafe_allow_html=True)
+st.subheader(TXT["register"])
+
 with st.form("register_form", clear_on_submit=True):
-    unit_number = st.text_input(TXT["unit"])
-    gate = st.text_input(TXT["gate"])
-    departure_time = st.time_input(TXT["time"])
-    destination = st.selectbox(TXT["destination"], DESTINATIONS)
+    unit_number = st.text_input(f"{TXT['unit']} *")
+    gate = st.text_input(f"{TXT['gate']} *")
+    departure_time = st.time_input(f"{TXT['time']} *")
+    destination = st.selectbox(f"{TXT['destination']} *", DESTINATIONS)
     comment = st.text_area(TXT["comment"])
 
-    # Transport type toggle (Train / Car)
     col1, col2 = st.columns(2)
     with col1:
-        if st.form_submit_button("🚆 Train", use_container_width=True):
-            st.session_state["transport_type"] = "Train"
+        if st.form_submit_button(f"🚆 {TXT['train']}"):
+            st.session_state.transport_type = "Train"
     with col2:
-        if st.form_submit_button("🚗 Car", use_container_width=True):
-            st.session_state["transport_type"] = "Car"
+        if st.form_submit_button(f"🚗 {TXT['car']}"):
+            st.session_state.transport_type = "Car"
 
-    # ✅ Submit mora biti UNUTAR forme
     submitted = st.form_submit_button(TXT["register"])
 
-# --- Handle submission ---
 if submitted:
-    if unit_number.strip() == "" or gate.strip() == "" or "transport_type" not in st.session_state or destination.strip() == "":
-        st.warning("⚠️ Please fill in all required fields before submitting.")
+    if not unit_number.strip() or not gate.strip() or not departure_time or not destination or not st.session_state.get("transport_type"):
+        st.warning(TXT["validation"])
     else:
         new_row = pd.DataFrame([{
-            "Unit": unit_number,
-            "Gate": gate,
-            "DepartureTime": departure_time.strftime("%H:%M"),
-            "TransportType": st.session_state["transport_type"],
-            "Destination": destination,
-            "Comment": comment
+            "Unit Number": unit_number.strip(),
+            "Gate": gate.strip(),
+            "Departure Time": departure_time.strftime("%H:%M"),
+            "Transport Type": st.session_state.transport_type,
+            "Destination": destination.strip(),
+            "Comment": comment.strip(),
+            "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }])
         data = pd.concat([data, new_row], ignore_index=True)
         save_data(data)
-        st.success("✅ Departure registered successfully!")
+        st.success(TXT["saved"])
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 # =========================
 # ---- Filter & Sort -------
