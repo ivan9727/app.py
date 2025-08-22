@@ -49,7 +49,7 @@ TXT = {
         "destination":"Destination", "comment":"Comment",
         "saved":"✅ Departure added!", "updated":"✅ Departure updated!",
         "list":"📋 Registered Departures", "none":"No departures yet.",
-        "edit":"✏️ Edit", "delete":"🗑️ Delete",
+        "edit":"✏️ Edit", "delete":"🗑️ Delete", "actions":"Actions",
         "confirm_title":"Are you sure you want to delete this departure?",
         "yes":"✅ Yes, delete", "no":"❌ Cancel",
         "filter":"Filter by destination", "sort":"Sort by",
@@ -62,13 +62,17 @@ TXT = {
         "toast_deleted":"🗑️ Departure deleted.",
         "install_reportlab":'Install <code>reportlab</code> for PDF export: <code>pip install reportlab</code>',
         "view_mode":"View mode", "view_list":"List", "view_table":"Table",
-        "actions":"Actions", "service_date":"Service date",
-        "today":"Today", "prev_day":"◀ Yesterday",
+        "service_date":"Service date", "today":"Today", "prev_day":"◀ Yesterday",
         "suggestions":"Suggestions", "search_unit":"Quick search by Unit Number",
         "theme":"Theme", "theme_auto":"Auto", "theme_light":"Light", "theme_dark":"Dark",
         "empty_export":"Nothing to export for this day.",
         "gate_digits_live":"⚠️ Gate must contain digits only.",
         "gate_digits_block":"⚠️ Gate must be a number.",
+        "menu_more":"⋯",
+        "unit_hint":"Examples: PTRU, BGLU…",
+        "gate_hint":"Only numbers (e.g. 12, 386).",
+        "time_hint":"24h format (e.g. 06:15).",
+        "dest_hint":"Pick from list.",
     },
     "Norsk": {
         "title":"🚉 Avgangsregistreringssystem",
@@ -78,7 +82,7 @@ TXT = {
         "destination":"Destinasjon", "comment":"Kommentar",
         "saved":"✅ Avgang registrert!", "updated":"✅ Avgang oppdatert!",
         "list":"📋 Registrerte avganger", "none":"Ingen avganger ennå.",
-        "edit":"✏️ Rediger", "delete":"🗑️ Slett",
+        "edit":"✏️ Rediger", "delete":"🗑️ Slett", "actions":"Handlinger",
         "confirm_title":"Er du sikker på at du vil slette denne avgangen?",
         "yes":"✅ Ja, slett", "no":"❌ Avbryt",
         "filter":"Filtrer etter destinasjon", "sort":"Sorter etter",
@@ -91,13 +95,17 @@ TXT = {
         "toast_deleted":"🗑️ Avgang slettet.",
         "install_reportlab":'Installer <code>reportlab</code> for PDF: <code>pip install reportlab</code>',
         "view_mode":"Visning", "view_list":"Liste", "view_table":"Tabell",
-        "actions":"Handlinger", "service_date":"Dato",
-        "today":"I dag", "prev_day":"◀ I går",
+        "service_date":"Dato", "today":"I dag", "prev_day":"◀ I går",
         "suggestions":"Forslag", "search_unit":"Hurtigsøk etter enhet",
         "theme":"Tema", "theme_auto":"Auto", "theme_light":"Lys", "theme_dark":"Mørk",
         "empty_export":"Ingenting å eksportere for denne dagen.",
         "gate_digits_live":"⚠️ Luke må kun inneholde tall.",
         "gate_digits_block":"⚠️ Luke må være et tall.",
+        "menu_more":"⋯",
+        "unit_hint":"Eksempler: PTRU, BGLU…",
+        "gate_hint":"Kun tall (f.eks. 12, 386).",
+        "time_hint":"24t format (f.eks. 06:15).",
+        "dest_hint":"Velg fra listen.",
     },
 }[LANG]
 
@@ -130,23 +138,20 @@ def inject_css(theme: str):
 
     st.markdown(f"""
     <style>
-    {"body, .block-container {{ background-color:%s !important; color:%s !important; }}" % (base_bg, base_fg) if dark or light else ""}
+    {"body, .block-container { background-color:%s !important; color:%s !important; }" % (base_bg, base_fg) if dark or light else ""}
 
-    /* Header */
     .block-container > div:first-child h1 {{
         background:{header_grad}; border:1px solid {border};
         padding:12px 16px; border-radius:14px; box-shadow:0 2px 10px rgba(0,0,0,0.04);
     }}
 
-    /* Card samo za redove (ne koristimo pod filter/quick) */
     .app-card {{
         position:relative; background:{card_bg}; border:1px solid {border};
         padding:1rem 1rem 1rem 1.1rem; border-radius:12px; margin-bottom:.8rem;
     }}
     .app-card:before {{ content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:{section_strip}; opacity:.85; }}
 
-    /* Badges */
-    .badge{{display:inline-block;padding:2px 8px;border-radius:10px;font-weight:700;border:1px solid transparent;}}
+    .badge{{display:inline-block;padding:2px 10px;border-radius:10px;font-weight:700;border:1px solid transparent;}}
     .b-unit{{background:{blue_soft};color:{blue};border-color:rgba(37,99,235,.22);}}
     .b-gate{{background:#f5eafe;color:{purple};border-color:rgba(124,58,237,.22);}}
     .b-time{{background:#fff4e5;color:{amber};border-color:rgba(180,83,9,.22);}}
@@ -156,22 +161,20 @@ def inject_css(theme: str):
     .pill-train{{background:{red_bg};color:{red};border-color:rgba(239,68,68,.22);}}
     .pill-car{{background:{green_bg};color:{green};border-color:rgba(22,163,74,.22);}}
 
-    .stButton > button{{border-radius:12px;border:1px solid {border};padding:.5rem .95rem;font-weight:800;background:{blue_soft};color:{blue};}}
-    .stButton > button:hover{{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.08);}}
+    .soft-divider{{height:1px; background:linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,0)); margin:.8rem 0; }}
 
-    /* List view Edit/Delete */
-    .row-line div[data-testid="column"]:nth-child(7) .stButton > button{{background:{green_bg};color:{green};border-color:rgba(22,163,74,.25)!important;}}
-    .row-line div[data-testid="column"]:nth-child(8) .stButton > button{{background:{red_bg};color:{red};border-color:rgba(239,68,68,.25)!important;}}
+    /* Action menu trigger (tri točke) */
+    .more-btn > button {{
+        border-radius:12px; padding:.35rem .6rem; font-weight:900;
+    }}
 
-    /* Table view last col */
-    .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(1) > button{{background:{green_bg};color:{green};border-color:rgba(22,163,74,.25)!important;}}
-    .table-row div[data-testid="column"]:last-child .stButton:nth-of-type(2) > button{{background:{red_bg};color:{red};border-color:rgba(239,68,68,.25)!important;}}
-
-    /* Dropdown blur */
-    div[role="listbox"]{{background:{list_bg} !important;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:{list_fg};
-        border:1px solid {list_border}; box-shadow:{shadow}; border-radius:10px;}}
-    div[role="option"]{{padding-top:8px!important;padding-bottom:8px!important;}}
-    div[role="option"][aria-selected="true"], div[role="option"]:hover{{background:rgba(22,163,74,.12)!important;}}
+    /* Segmented theme toggle */
+    .segmented .stRadio > div{{display:flex; gap:6px}}
+    .segmented .stRadio label{{flex:1}}
+    .segmented .stRadio div[role="radiogroup"] > div{{flex:1}}
+    .segmented .stRadio input{{display:none}}
+    .segmented .stRadio div[role="radio"]{{border:1px solid {border}; border-radius:10px; padding:.4rem .6rem; text-align:center; cursor:pointer}}
+    .segmented .stRadio div[aria-checked="true"]{{background:{blue_soft}; color:{blue}; border-color:rgba(37,99,235,.35)}}
 
     /* Inputs focus */
     div[data-baseweb="select"] > div{{border-radius:10px;border-color:{border};box-shadow:none;}}
@@ -181,20 +184,16 @@ def inject_css(theme: str):
         box-shadow:0 0 0 2px rgba(37,99,235,.22); border-color:rgba(37,99,235,.55);
     }}
 
-    /* Thin gradient divider umjesto kartica */
-    .soft-divider{{height:1px; background:linear-gradient(90deg, rgba(0,0,0,.08), rgba(0,0,0,0)); margin:.8rem 0; }}
-
-    /* Segmented theme toggle (radio stil) */
-    .segmented .stRadio > div{{display:flex; gap:6px}}
-    .segmented .stRadio label{{flex:1}}
-    .segmented .stRadio div[role="radiogroup"] > div{{flex:1}}
-    .segmented .stRadio input{{display:none}}
-    .segmented .stRadio div[role="radio"]{{border:1px solid {border}; border-radius:10px; padding:.4rem .6rem; text-align:center; cursor:pointer}}
-    .segmented .stRadio div[aria-checked="true"]{{background:{blue_soft}; color:{blue}; border-color:rgba(37,99,235,.35)}}
-
     .table-header{{font-weight:800; opacity:.9; padding:.35rem 0; border-bottom:2px solid {blue}; margin-bottom:.25rem;}}
     .date-badge{{display:inline-block; padding:4px 10px; border-radius:999px; background:{blue_soft}; color:{blue}; font-weight:800; border:1px solid {border};}}
     .muted{{opacity:.6}}
+
+    /* Mobilno zbijenije */
+    @media (max-width: 640px){
+        .app-card{{padding:.8rem}}
+        .badge{{padding:2px 8px}}
+        .stButton > button{{padding:.45rem .8rem}}
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -221,23 +220,22 @@ def inject_css(theme: str):
 # Utils
 # =========================
 def migrate_or_create(path:str)->pd.DataFrame:
-    with get_lock():
-        if not os.path.exists(path):
-            df=pd.DataFrame(columns=COLS); df.to_csv(path, index=False); return df
-        df=pd.read_csv(path)
-
+    if not os.path.exists(path):
+        df=pd.DataFrame(columns=COLS); df.to_csv(path, index=False); return df
+    df=pd.read_csv(path)
+    # NO -> EN rename if needed
     map_no_to_en={"Enhetnummer":"Unit Number","Luke":"Gate","Avgangstid":"Departure Time",
                   "Transporttype":"Transport Type","Destinasjon":"Destination","Kommentar":"Comment","Dato":"Service Date"}
     if any(c in map_no_to_en for c in df.columns):
         df=df.rename(columns={c:map_no_to_en[c] for c in df.columns if c in map_no_to_en})
-
+    # ensure cols
     for c in COLS:
         if c not in df.columns:
             if c=="ID": df[c]=[str(uuid.uuid4()) for _ in range(len(df))] if len(df) else []
             elif c=="Created At": df[c]=pd.NaT
             elif c=="Service Date": df[c]=date.today().strftime("%Y-%m-%d")
             else: df[c]=""
-
+    # normalize time
     def _fix_time(t):
         t=str(t).strip()
         if not t or t.lower()=="nan": return ""
@@ -245,15 +243,17 @@ def migrate_or_create(path:str)->pd.DataFrame:
             hh,mm=t.split(":")[:2]; return f"{int(hh):02d}:{int(mm):02d}"
         except: return ""
     df["Departure Time"]=df["Departure Time"].astype(str).map(_fix_time)
+    # normalize date
     try:
         df["Service Date"]=pd.to_datetime(df["Service Date"], errors="coerce").dt.date.astype(str)
-    except: df["Service Date"]=df["Service Date"].astype(str)
+    except:
+        df["Service Date"]=df["Service Date"].astype(str)
     df["ID"]=df["ID"].apply(lambda x: str(x).strip() if str(x).strip() else str(uuid.uuid4()))
     df["Destination"]=df["Destination"].astype(str).str.strip()
     return df[COLS]
 
 def save_data(df:pd.DataFrame):
-    with get_lock(): df.to_csv(DATA_FILE, index=False)
+    df.to_csv(DATA_FILE, index=False)
 
 def upcoming_sort_key(t:str, base:date)->datetime:
     try:
@@ -263,12 +263,11 @@ def upcoming_sort_key(t:str, base:date)->datetime:
     except: return datetime.max
 
 def export_excel(df:pd.DataFrame)->bytes:
-    from io import BytesIO
-    output=BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as w:
+    out=BytesIO()
+    with pd.ExcelWriter(out, engine="xlsxwriter") as w:
         df.to_excel(w, index=False, sheet_name="Departures")
         w.sheets["Departures"].set_column(0, len(df.columns)-1, 20)
-    return output.getvalue()
+    return out.getvalue()
 
 def export_pdf(df:pd.DataFrame)->bytes|None:
     try:
@@ -298,21 +297,15 @@ if "transport_type" not in st.session_state: st.session_state.transport_type=Non
 if "edit_id" not in st.session_state: st.session_state.edit_id=None
 if "confirm_delete" not in st.session_state: st.session_state.confirm_delete=None
 
-# segmented theme (radio styled)
+# Segmented theme toggle
 with st.sidebar:
     st.markdown(f"**{TXT['theme']}**")
-    with st.container():
-        st.markdown('<div class="segmented">', unsafe_allow_html=True)
-        theme_choice = st.radio(
-            label="",
-            options=[TXT["theme_light"], TXT["theme_dark"], TXT["theme_auto"]],
-            horizontal=True,
-            index=0
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown('<div class="segmented">', unsafe_allow_html=True)
+    theme_pick = st.radio("", options=[TXT["theme_light"], TXT["theme_dark"], TXT["theme_auto"]], horizontal=True, index=0)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 theme_map={TXT["theme_auto"]:"Auto", TXT["theme_light"]:"Light", TXT["theme_dark"]:"Dark"}
-inject_css(theme_map[theme_choice])
+inject_css(theme_map[theme_pick])
 
 # =========================
 # Title & Data
@@ -320,12 +313,12 @@ inject_css(theme_map[theme_choice])
 st.title(TXT["title"])
 data=migrate_or_create(DATA_FILE)
 
-# ======== Date controls (bez Tomorrow) ========
+# Date controls (bez Tomorrow)
 with st.sidebar:
     st.markdown(f"<span class='date-badge'>{TXT['service_date']}: {st.session_state.service_date.strftime('%Y-%m-%d')}</span>", unsafe_allow_html=True)
-    dc1, dc2 = st.columns(2)
-    if dc1.button(TXT["prev_day"]): st.session_state.service_date-=timedelta(days=1); st.rerun()
-    if dc2.button(TXT["today"]): st.session_state.service_date=date.today(); st.rerun()
+    c1,c2=st.columns(2)
+    if c1.button(TXT["prev_day"]): st.session_state.service_date-=timedelta(days=1); st.rerun()
+    if c2.button(TXT["today"]): st.session_state.service_date=date.today(); st.rerun()
     picked=st.date_input(TXT["service_date"], value=st.session_state.service_date)
     if picked!=st.session_state.service_date: st.session_state.service_date=picked; st.rerun()
 
@@ -339,27 +332,38 @@ with st.sidebar:
     c1,c2,c3=st.columns(3)
     c1.metric(TXT["total"], total); c2.metric(TXT["train_count"], int(trains)); c3.metric(TXT["car_count"], int(cars))
 
-# Known units (uppercase)
+# Known units
 known_units=sorted(set(u.upper() for u in BASE_KNOWN_UNITS)|set(map(lambda x:str(x).upper(), data["Unit Number"].dropna().unique())))
 
 # =========================
-# Register form
+# Register form (NE resetira na grešci)
 # =========================
 st.subheader(TXT["register"])
-with st.form("register_form", clear_on_submit=True):
-    c1,c2,c3,c4=st.columns([1.2,1,1,1.2])
-    unit_number=c1.text_input(f"{TXT['unit']} *", key="unit_number_new")
-    gate=c2.text_input(f"{TXT['gate']} *")
+with st.form("register_form", clear_on_submit=False):
+    c1,c2,c3,c4=st.columns([1.3,1,1,1.2])
+
+    unit_number=c1.text_input(f"{TXT['unit']} *", key="unit_number_new", placeholder="PTRU, BGLU…")
+    c1.caption(TXT["unit_hint"])
+
+    gate=c2.text_input(f"{TXT['gate']} *", placeholder="e.g. 12")
+    c2.caption(TXT["gate_hint"])
     if gate and not gate.isdigit(): st.warning(TXT["gate_digits_live"])
+
     departure_time_val=c3.time_input(f"{TXT['time']} *", step=timedelta(minutes=5))
+    c3.caption(TXT["time_hint"])
+
     destination=c4.selectbox(f"{TXT['destination']} *", DESTINATIONS)
-    comment=st.text_area(TXT["comment"], placeholder="Optional...")
+    c4.caption(TXT["dest_hint"])
+
+    comment=st.text_area(TXT["comment"], placeholder="Optional…")
+
     transport_type=st.radio(f"{TXT['transport']} *", options=["Train","Car"], horizontal=True,
                             index=0 if st.session_state.get("transport_type")=="Train" else 1 if st.session_state.get("transport_type")=="Car" else 0)
     st.session_state.transport_type=transport_type
+
     submitted=st.form_submit_button(TXT["register"])
 
-# Autocomplete SUGGESTIONS (IZVAN forme → nema više greške)
+# Autocomplete (IZVAN forme)
 if st.session_state.get("unit_number_new"):
     prefix=st.session_state.unit_number_new.upper()
     suggestions=[u for u in known_units if u.startswith(prefix)]
@@ -397,16 +401,14 @@ if submitted:
             data=pd.concat([data,row], ignore_index=True); save_data(data); st.success(TXT["saved"])
 
 # =========================
-# Filter / Sort toolbar (bez kartice)
+# Filter / Sort / View
 # =========================
-st.markdown("### ")
 fc1,fc2,fc3=st.columns([2,1,1])
 search=fc1.selectbox(TXT["filter"], options=["All"]+[d for d in DESTINATIONS if d], index=0)
 sort_choice=fc2.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]])
 view_mode=fc3.selectbox(TXT["view_mode"], [TXT["view_list"], TXT["view_table"]], index=0)
 st.markdown('<div class="soft-divider"></div>', unsafe_allow_html=True)
 
-# Quick search (bez kartice)
 qs=st.text_input(TXT["search_unit"], key="quick_search_unit")
 st.markdown('<div class="soft-divider"></div>', unsafe_allow_html=True)
 
@@ -421,15 +423,22 @@ else:
                      .sort_values(by=["_k","Destination"], kind="mergesort").drop(columns=["_k"])
 
 # =========================
-# List / Table
+# Rows (List/Table) s "tri točke" menijem
 # =========================
+def action_menu(col, label:str):
+    with col.popover(label=label, help=TXT["actions"]):
+        a1,a2=st.columns(2)
+        do_edit=a1.button(TXT["edit"], use_container_width=True)
+        do_del =a2.button(TXT["delete"], use_container_width=True)
+        return do_edit, do_del
+
 def render_list(df:pd.DataFrame):
     st.subheader(TXT["list"])
     if df.empty: st.info(TXT["none"]); return
     for _,row in df.iterrows():
         rid=row["ID"]
         st.markdown('<div class="app-card"><div class="row-line">', unsafe_allow_html=True)
-        c=st.columns([1.2,1.0,1.0,1.1,1.2,1.8,0.65,0.65])
+        c=st.columns([1.2,1.0,1.0,1.1,1.2,1.8,0.4])
         c[0].markdown(f"<span class='badge b-unit'>{row['Unit Number']}</span>", unsafe_allow_html=True)
         c[1].markdown(f"<span class='badge b-gate'>{row['Gate']}</span>", unsafe_allow_html=True)
         c[2].markdown(f"<span class='badge b-time'>{row['Departure Time']}</span>", unsafe_allow_html=True)
@@ -437,11 +446,17 @@ def render_list(df:pd.DataFrame):
         c[3].markdown(f"<span class='transport-pill {pill}'>{row['Transport Type']}</span>", unsafe_allow_html=True)
         c[4].markdown(f"<span class='badge b-dest'>{row['Destination']}</span>", unsafe_allow_html=True)
         c[5].markdown(row["Comment"] if str(row["Comment"]).strip() else '<span class="muted">—</span>', unsafe_allow_html=True)
-        e=c[6].button(TXT["edit"], key=f"e_{rid}", use_container_width=True)
-        d=c[7].button(TXT["delete"], key=f"d_{rid}", use_container_width=True)
+
+        with c[6]:
+            st.markdown('<div class="more-btn">', unsafe_allow_html=True)
+            do_edit, do_del = action_menu(st, TXT["menu_more"])
+            st.markdown('</div>', unsafe_allow_html=True)
+
         st.markdown('</div></div>', unsafe_allow_html=True)
-        if e: st.session_state.edit_id=rid
-        if d: st.session_state.confirm_delete=rid
+
+        if do_edit: st.session_state.edit_id=rid
+        if do_del:  st.session_state.confirm_delete=rid
+
         if st.session_state.confirm_delete==rid:
             with st.warning(TXT["confirm_title"]):
                 a,b=st.columns(2)
@@ -458,7 +473,7 @@ def render_table(df:pd.DataFrame):
     for _,row in df.iterrows():
         rid=row["ID"]
         st.markdown('<div class="table-row app-card" style="padding-top:.6rem;padding-bottom:.6rem;">', unsafe_allow_html=True)
-        c=st.columns([1.0,0.9,0.9,1.0,1.0,2.0,0.9])
+        c=st.columns([1.0,0.9,0.9,1.0,1.0,2.0,0.4])
         c[0].markdown(f"<span class='badge b-unit'>{row['Unit Number']}</span>", unsafe_allow_html=True)
         c[1].markdown(f"<span class='badge b-gate'>{row['Gate']}</span>", unsafe_allow_html=True)
         c[2].markdown(f"<span class='badge b-time'>{row['Departure Time']}</span>", unsafe_allow_html=True)
@@ -467,12 +482,14 @@ def render_table(df:pd.DataFrame):
         c[4].markdown(f"<span class='badge b-dest'>{row['Destination']}</span>", unsafe_allow_html=True)
         c[5].markdown(row["Comment"] if str(row["Comment"]).strip() else '<span class="muted">—</span>', unsafe_allow_html=True)
         with c[6]:
-            x,y=st.columns(2)
-            e=x.button(TXT["edit"], key=f"te_{rid}", use_container_width=True)
-            d=y.button(TXT["delete"], key=f"td_{rid}", use_container_width=True)
+            st.markdown('<div class="more-btn">', unsafe_allow_html=True)
+            do_edit, do_del = action_menu(st, TXT["menu_more"])
+            st.markdown('</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
-        if e: st.session_state.edit_id=rid
-        if d: st.session_state.confirm_delete=rid
+
+        if do_edit: st.session_state.edit_id=rid
+        if do_del:  st.session_state.confirm_delete=rid
+
         if st.session_state.confirm_delete==rid:
             with st.warning(TXT["confirm_title"]):
                 a,b=st.columns(2)
@@ -486,26 +503,35 @@ if view_mode==TXT["view_list"]: render_list(filtered)
 else: render_table(filtered)
 
 # =========================
-# Edit form (suggestions IZVAN forme)
+# Edit form (suggestions IZVAN forme, ne resetira)
 # =========================
 if st.session_state.edit_id is not None and (data["ID"]==st.session_state.edit_id).any():
     idx = data.index[data["ID"]==st.session_state.edit_id][0]
     st.subheader(TXT["edit_title"])
-    with st.form("edit_form"):
+    with st.form("edit_form", clear_on_submit=False):
         r1c1,r1c2,r1c3,r1c4,r1c5=st.columns([1,1,1,1,1])
         cur_day = datetime.strptime(str(data.loc[idx,"Service Date"]), "%Y-%m-%d").date() \
                   if str(data.loc[idx,"Service Date"]) else st.session_state.service_date
         service_date_val=r1c1.date_input(TXT["service_date"], value=cur_day)
+
         unit_number=r1c2.text_input(f"{TXT['unit']} *", value=str(data.loc[idx,"Unit Number"]), key="unit_number_edit")
+        r1c2.caption(TXT["unit_hint"])
+
         gate=r1c3.text_input(f"{TXT['gate']} *", value=str(data.loc[idx,"Gate"]))
+        r1c3.caption(TXT["gate_hint"])
         if gate and not gate.isdigit(): st.warning(TXT["gate_digits_live"])
+
         try:
             hh,mm=str(data.loc[idx,"Departure Time"]).split(":")
             default_t=time(int(hh), int(mm))
         except: default_t=None
         departure_time_val=r1c4.time_input(f"{TXT['time']} *", value=default_t, step=timedelta(minutes=5))
+        r1c4.caption(TXT["time_hint"])
+
         destination=r1c5.selectbox(TXT["destination"], DESTINATIONS,
                                     index=max(0, DESTINATIONS.index(str(data.loc[idx,"Destination"])) if str(data.loc[idx,"Destination"]) in DESTINATIONS else 0))
+        r1c5.caption(TXT["dest_hint"])
+
         transport_type_edit=st.radio(f"{TXT['transport']} *", options=["Train","Car"], horizontal=True,
                                      index=0 if data.loc[idx,"Transport Type"]=="Train" else 1)
         comment=st.text_area(TXT["comment"], value=str(data.loc[idx,"Comment"]))
@@ -564,8 +590,3 @@ pdf_bytes = (lambda d: export_pdf(d) if not d.empty else None)(export_df)
 ec3.download_button(TXT["export_pdf"], pdf_bytes if pdf_bytes else b"", file_name=f"departures_{day_str}.pdf",
                     disabled=is_empty, help=TXT["empty_export"] if is_empty else None)
 if is_empty: st.caption(TXT["empty_export"])
-
-# =========================
-# Note
-# =========================
-st.caption("Daily view by 'Service Date'. CSV persistence with a file lock. Filter/Sort and quick search are clean (no boxes). Theme toggle is a segmented control.")
