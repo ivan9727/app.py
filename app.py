@@ -119,58 +119,41 @@ def inject_css(dark: bool):
     st.markdown(
         f"""
         <style>
-            html, body, .block-container {{
+            body, .block-container {{
                 background-color: {base_bg} !important;
                 color: {base_fg} !important;
             }}
+
+            /* >>> Fix za nestali tekst <<< */
+            label, .stTextInput label, .stSelectbox label, .stTimeInput label, .stTextArea label {{
+                color: {base_fg} !important;
+                font-weight: 600 !important;
+            }}
+
             .app-card {{
                 background: {card_bg};
                 border: 1px solid {border};
                 padding: 1rem;
                 border-radius: 12px;
-                box-shadow: none;
                 margin-bottom: 0.5rem;
             }}
+
             .transport-pill {{
                 display:inline-block; padding: 2px 8px; border-radius: 999px; font-weight:600;
             }}
             .pill-train {{ background:#ffe5e5; color:#6a0000; }}
             .pill-car   {{ background:#e7ffe7; color:#064b00; }}
 
-            /* Toggle buttons look */
             .toggle-row button {{
                 border-radius: 8px !important;
                 padding: 0.5rem 0.9rem !important;
                 font-weight: 700 !important;
                 border: 1px solid {border} !important;
             }}
-            .btn-train-active {{
-                background:#ffd6d6 !important; color:#5c0000 !important;
-            }}
-            .btn-car-active {{
-                background:#d9ffd9 !important; color:#024b00 !important;
-            }}
-            .btn-inactive {{
-                background:{card_bg} !important; color:{base_fg} !important;
-            }}
-
-            /* Buttons general */
-            .stButton>button {{
-                border-radius: 10px;
-            }}
-
-            /* Inputs */
-            .stTextInput>div>div>input, .stTextArea textarea {{
-                border-radius: 10px;
-            }}
-
-            /* Small muted text */
-            .muted {{
-                opacity: 0.7; font-size: 0.9rem;
-            }}
         </style>
         """,
         unsafe_allow_html=True,
+    )
     )
 
 # =========================
@@ -310,61 +293,42 @@ st.markdown('<div class="app-card">', unsafe_allow_html=True)
 st.subheader(TXT["register"])
 
 form_cols = st.columns([1, 1, 1, 1])
+# --- Registration form ---
 with st.form("register_form", clear_on_submit=True):
-    unit_number = form_cols[0].text_input(f"{TXT['unit']} *")
-    gate = form_cols[1].text_input(f"{TXT['gate']} *")
-    departure_time = form_cols[2].time_input(f"{TXT['time']} *", value=None)
-    destination = form_cols[3].selectbox(f"{TXT['destination']} *", DESTINATIONS, index=0)
+    unit_number = st.text_input(TXT["unit"])
+    gate = st.text_input(TXT["gate"])
+    departure_time = st.time_input(TXT["time"])
+    destination = st.selectbox(TXT["destination"], DESTINATIONS)
+    comment = st.text_area(TXT["comment"])
 
-    st.markdown('<div class="toggle-row">', unsafe_allow_html=True)
-    tc1, tc2, _sp = st.columns([1,1,3])
-    # Transport toggle as stylish buttons
-    train_active = (st.session_state.transport_type == "Train")
-    car_active = (st.session_state.transport_type == "Car")
+    # Transport type toggle (Train / Car)
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.form_submit_button("🚆 Train", use_container_width=True):
+            st.session_state["transport_type"] = "Train"
+    with col2:
+        if st.form_submit_button("🚗 Car", use_container_width=True):
+            st.session_state["transport_type"] = "Car"
 
-    if tc1.button(f"🚆 {TXT['train']}", use_container_width=True,
-                  key="btn_train",
-                  help=TXT["transport"],
-                  ):
-        st.session_state.transport_type = "Train"
-        train_active, car_active = True, False
-
-    if tc2.button(f"🚗 {TXT['car']}", use_container_width=True,
-                  key="btn_car",
-                  help=TXT["transport"],
-                  ):
-        st.session_state.transport_type = "Car"
-        train_active, car_active = False, True
-
-    # Apply visual state to the two buttons via JS-less CSS hint (class names on container not directly supported per-button in Streamlit)
-    # We'll show current state as text pill:
-    if st.session_state.transport_type:
-        sel = st.session_state.transport_type
-        pill_class = "pill-train" if sel == "Train" else "pill-car"
-        st.markdown(f'<span class="transport-pill {pill_class}">{sel}</span>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    comment = st.text_area(TXT["comment"], placeholder="Optional notes...")
-
+    # ✅ Submit mora biti UNUTAR forme
     submitted = st.form_submit_button(TXT["register"])
 
-    if submitted:
-        # Validation
-        if not unit_number.strip() or not gate.strip() or not departure_time or not destination or not st.session_state.transport_type:
-            st.warning(TXT["validation"])
-        else:
-            new_row = pd.DataFrame([{
-                "Unit Number": unit_number.strip(),
-                "Gate": gate.strip(),
-                "Departure Time": departure_time.strftime("%H:%M"),
-                "Transport Type": st.session_state.transport_type,
-                "Destination": str(destination).strip(),
-                "Comment": comment.strip(),
-                "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            }])
-            data = pd.concat([data, new_row], ignore_index=True)
-            save_data(data)
-            st.success(TXT["saved"])
+# --- Handle submission ---
+if submitted:
+    if unit_number.strip() == "" or gate.strip() == "" or "transport_type" not in st.session_state or destination.strip() == "":
+        st.warning("⚠️ Please fill in all required fields before submitting.")
+    else:
+        new_row = pd.DataFrame([{
+            "Unit": unit_number,
+            "Gate": gate,
+            "DepartureTime": departure_time.strftime("%H:%M"),
+            "TransportType": st.session_state["transport_type"],
+            "Destination": destination,
+            "Comment": comment
+        }])
+        data = pd.concat([data, new_row], ignore_index=True)
+        save_data(data)
+        st.success("✅ Departure registered successfully!")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
