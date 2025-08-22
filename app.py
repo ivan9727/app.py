@@ -288,8 +288,6 @@ with st.sidebar:
 # =========================
 # ---- Registration Form ---
 # =========================
-st.markdown('<div class="app-card">', unsafe_allow_html=True)
-st.subheader(TXT["register"])
 
 form_cols = st.columns([1, 1, 1, 1])
 # --- Registration form ---
