@@ -304,13 +304,14 @@ with st.form("register_form", clear_on_submit=True):
     destination = st.selectbox(f"{TXT['destination']} *", DESTINATIONS)
     comment = st.text_area(TXT["comment"])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.form_submit_button(f"🚆 {TXT['train']}"):
-            st.session_state.transport_type = "Train"
-    with col2:
-        if st.form_submit_button(f"🚗 {TXT['car']}"):
-            st.session_state.transport_type = "Car"
+    # Transport toggle kao radio dugmad
+    transport_type = st.radio(
+        f"{TXT['transport']} *",
+        options=["Train", "Car"],
+        horizontal=True,
+        index=0 if st.session_state.get("transport_type") == "Train" else 1 if st.session_state.get("transport_type") == "Car" else 0
+    )
+    st.session_state["transport_type"] = transport_type
 
     submitted = st.form_submit_button(TXT["register"])
 
@@ -322,7 +323,7 @@ if submitted:
             "Unit Number": unit_number.strip(),
             "Gate": gate.strip(),
             "Departure Time": departure_time.strftime("%H:%M"),
-            "Transport Type": st.session_state.transport_type,
+            "Transport Type": st.session_state["transport_type"],
             "Destination": destination.strip(),
             "Comment": comment.strip(),
             "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -330,7 +331,6 @@ if submitted:
         data = pd.concat([data, new_row], ignore_index=True)
         save_data(data)
         st.success(TXT["saved"])
-st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =========================
