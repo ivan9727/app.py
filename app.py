@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import uuid
 from datetime import datetime, date, time, timedelta
 from io import BytesIO
 
@@ -18,15 +19,27 @@ st.set_page_config(
 # Constants & Data Schema
 # -------------------------
 DATA_FILE = "departures.csv"
+LOCK_FILE = DATA_FILE + ".lock"
 
-# Canonical columns in English
-COLS = ["Unit Number", "Gate", "Departure Time", "Transport Type", "Destination", "Comment", "Created At"]
+# Pokušaj file-lock; ako nema paketa, koristi dummy lock
+try:
+    from filelock import FileLock
+    def get_lock():
+        return FileLock(LOCK_FILE)
+except Exception:
+    from contextlib import contextmanager
+    @contextmanager
+    def get_lock():
+        yield
+
+# Canonical columns in English (ID je prvi)
+COLS = ["ID", "Unit Number", "Gate", "Departure Time", "Transport Type", "Destination", "Comment", "Created At"]
 
 # Destination list (normalized)
 DESTINATIONS = ["", "Førde", "Molde", "Haugesund", "Ålesund", "Trondheim", "Stavanger"]
 
-# Language packs (default EN). You said UI in English, but adding NO switch as extra feature.
-LANG = st.sidebar.selectbox("Language", ["English", "Norsk"], index=0)
+# Language packs (EN + NO)
+LANG = st.sidebar.selectbox("Language / Språk", ["English", "Norsk"], index=0)
 
 TXT = {
     "English": {
@@ -54,6 +67,7 @@ TXT = {
         "sort_time": "Departure time (upcoming first)",
         "sort_dest": "Destination (A–Z)",
         "validation": "⚠️ Please fill in all required fields.",
+        "duplicate": "⚠️ A departure with the same Unit, Time and Destination already exists.",
         "export_csv": "⬇️ Export CSV",
         "export_xlsx": "⬇️ Export Excel",
         "export_pdf": "⬇️ Export PDF",
@@ -66,6 +80,7 @@ TXT = {
         "appearance": "Appearance",
         "dark_mode": "Dark mode",
         "toast_deleted": "🗑️ Departure deleted.",
+        "install_reportlab": 'Install <code>reportlab</code> for PDF export: <code>pip install reportlab</code>',
     },
     "Norsk": {
         "title": "🚉 Avgangsregistreringssystem",
@@ -89,9 +104,10 @@ TXT = {
         "no": "❌ Avbryt",
         "filter": "Filtrer etter destinasjon",
         "sort": "Sorter etter",
-        "sort_time": "Avgangstid (naredne prvo)",
+        "sort_time": "Avgangstid (kommende først)",
         "sort_dest": "Destinasjon (A–Å)",
         "validation": "⚠️ Vennligst fyll ut alle påkrevde felt.",
+        "duplicate": "⚠️ Det finnes allerede en avgang med samme enhet, tid og destinasjon.",
         "export_csv": "⬇️ Eksporter CSV",
         "export_xlsx": "⬇️ Eksporter Excel",
         "export_pdf": "⬇️ Eksporter PDF",
@@ -104,6 +120,7 @@ TXT = {
         "appearance": "Utseende",
         "dark_mode": "Mørk modus",
         "toast_deleted": "🗑️ Avgang slettet.",
+        "install_reportlab": 'Installer <code>reportlab</code> for PDF-eksport: <code>pip install reportlab</code>',
     },
 }[LANG]
 
@@ -124,7 +141,6 @@ def inject_css(dark: bool):
                 color: {base_fg} !important;
             }}
 
-            /* >>> Fix za nestali tekst <<< */
             label, .stTextInput label, .stSelectbox label, .stTimeInput label, .stTextArea label {{
                 color: {base_fg} !important;
                 font-weight: 600 !important;
@@ -150,6 +166,8 @@ def inject_css(dark: bool):
                 font-weight: 700 !important;
                 border: 1px solid {border} !important;
             }}
+
+            .muted {{ opacity: 0.6; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -159,11 +177,12 @@ def inject_css(dark: bool):
 # ---- Util Functions -----
 # =========================
 def migrate_or_create(csv_path: str) -> pd.DataFrame:
-    if not os.path.exists(csv_path):
-        df = pd.DataFrame(columns=COLS)
-        df.to_csv(csv_path, index=False)
-        return df
-    df = pd.read_csv(csv_path)
+    with get_lock():
+        if not os.path.exists(csv_path):
+            df = pd.DataFrame(columns=COLS)
+            df.to_csv(csv_path, index=False)
+            return df
+        df = pd.read_csv(csv_path)
 
     # Try to migrate old Norwegian columns to English
     map_no_to_en = {
@@ -174,7 +193,6 @@ def migrate_or_create(csv_path: str) -> pd.DataFrame:
         "Destinasjon": "Destination",
         "Kommentar": "Comment",
     }
-    # Normalize columns
     rename = {}
     for c in df.columns:
         if c in map_no_to_en:
@@ -185,32 +203,52 @@ def migrate_or_create(csv_path: str) -> pd.DataFrame:
     # Ensure all required columns exist
     for c in COLS:
         if c not in df.columns:
-            df[c] = "" if c != "Created At" else pd.NaT
+            if c == "ID":
+                df[c] = [str(uuid.uuid4()) for _ in range(len(df))] if len(df) else []
+            elif c == "Created At":
+                df[c] = pd.NaT
+            else:
+                df[c] = ""
+
+    # Ensure ID for any missing/blank
+    df["ID"] = df["ID"].apply(lambda x: str(x).strip() if pd.notna(x) and str(x).strip() else str(uuid.uuid4()))
 
     # Clean destination whitespace
     df["Destination"] = df["Destination"].astype(str).str.strip()
 
-    # Ensure types
-    df["Departure Time"] = df["Departure Time"].astype(str).str.strip()
+    # Normalize time col to "HH:MM"
+    def _fix_time(t):
+        t = str(t).strip()
+        if not t or t.lower() == "nan":
+            return ""
+        try:
+            hh, mm = t.split(":")[:2]
+            return f"{int(hh):02d}:{int(mm):02d}"
+        except Exception:
+            return ""
+    df["Departure Time"] = df["Departure Time"].astype(str).map(_fix_time)
+
+    # Keep canonical order
     return df[COLS]
 
 def save_data(df: pd.DataFrame):
-    df.to_csv(DATA_FILE, index=False)
+    with get_lock():
+        df.to_csv(DATA_FILE, index=False)
 
 def upcoming_sort_key(t: str) -> datetime:
-    """Sort times by next occurrence (today or tomorrow if already passed)."""
+    """Sort by next occurrence (today or +1 day if already passed)."""
     try:
-        h, m = [int(x) for x in t.split(":")]
-        dt_today = datetime.combine(date.today(), time(h, m))
-        if dt_today < datetime.now():
-            dt_today += timedelta(days=1)
-        return dt_today
+        h, m = map(int, t.split(":")[:2])
+        today = date.today()
+        dt = datetime.combine(today, time(h, m))
+        if dt < datetime.now():
+            dt += timedelta(days=1)
+        return dt
     except Exception:
         return datetime.max
 
 def export_excel(df: pd.DataFrame) -> bytes:
     output = BytesIO()
-    # Keep column order & types
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, index=False, sheet_name="Departures")
         ws = writer.sheets["Departures"]
@@ -229,20 +267,27 @@ def export_pdf(df: pd.DataFrame) -> bytes | None:
         x_margin, y_margin = 2*cm, 2*cm
         y = height - y_margin
 
+        # Title
         c.setFont("Helvetica-Bold", 14)
         c.drawString(x_margin, y, "Departures")
         y -= 1.0*cm
-        c.setFont("Helvetica", 10)
 
+        # Headers
+        c.setFont("Helvetica-Bold", 10)
         headers = COLS
-        line_height = 0.6*cm
-        for idx, row in df.iterrows():
+        header_line = " | ".join(headers)
+        c.drawString(x_margin, y, header_line[:200])
+        y -= 0.5*cm
+        c.setFont("Helvetica", 9)
+
+        line_height = 0.55*cm
+        for _, row in df.iterrows():
             line = " | ".join(str(row.get(h, "")) for h in headers)
             if y < y_margin + line_height:
                 c.showPage()
                 y = height - y_margin
-                c.setFont("Helvetica", 10)
-            c.drawString(x_margin, y, line[:180])  # truncate for safety
+                c.setFont("Helvetica", 9)
+            c.drawString(x_margin, y, line[:240])  # sigurnosno skraćenje
             y -= line_height
 
         c.showPage()
@@ -258,8 +303,8 @@ def export_pdf(df: pd.DataFrame) -> bytes | None:
 # =========================
 if "transport_type" not in st.session_state:
     st.session_state.transport_type = None
-if "edit_index" not in st.session_state:
-    st.session_state.edit_index = None
+if "edit_id" not in st.session_state:
+    st.session_state.edit_id = None
 if "confirm_delete" not in st.session_state:
     st.session_state.confirm_delete = None
 
@@ -288,21 +333,16 @@ with st.sidebar:
 # =========================
 # ---- Registration Form ---
 # =========================
-
-form_cols = st.columns([1, 1, 1, 1])
-# --- Registration form ---
-# --- Registration Form (Simplified) ---
 st.markdown('<div class="app-card">', unsafe_allow_html=True)
 st.subheader(TXT["register"])
 
 with st.form("register_form", clear_on_submit=True):
     unit_number = st.text_input(f"{TXT['unit']} *")
     gate = st.text_input(f"{TXT['gate']} *")
-    departure_time = st.time_input(f"{TXT['time']} *")
+    departure_time_val = st.time_input(f"{TXT['time']} *", step=timedelta(minutes=5))
     destination = st.selectbox(f"{TXT['destination']} *", DESTINATIONS)
     comment = st.text_area(TXT["comment"])
 
-    # Transport toggle kao radio dugmad
     transport_type = st.radio(
         f"{TXT['transport']} *",
         options=["Train", "Car"],
@@ -314,31 +354,37 @@ with st.form("register_form", clear_on_submit=True):
     submitted = st.form_submit_button(TXT["register"])
 
 if submitted:
-    if not unit_number.strip() or not gate.strip() or not departure_time or not destination or not st.session_state.get("transport_type"):
+    if not unit_number.strip() or not gate.strip() or not departure_time_val or not destination or not st.session_state.get("transport_type"):
         st.warning(TXT["validation"])
     else:
-        new_row = pd.DataFrame([{
-            "Unit Number": unit_number.strip(),
-            "Gate": gate.strip(),
-            "Departure Time": departure_time.strftime("%H:%M"),
-            "Transport Type": st.session_state["transport_type"],
-            "Destination": destination.strip(),
-            "Comment": comment.strip(),
-            "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }])
-        data = pd.concat([data, new_row], ignore_index=True)
-        save_data(data)
-        st.success(TXT["saved"])
-
+        # Duplicate check (Unit + Time + Destination)
+        dep_str = departure_time_val.strftime("%H:%M")
+        dup_mask = (data["Unit Number"].astype(str).str.strip() == unit_number.strip()) & \
+                   (data["Departure Time"].astype(str).str.strip() == dep_str) & \
+                   (data["Destination"].astype(str).str.strip() == destination.strip())
+        if dup_mask.any():
+            st.warning(TXT["duplicate"])
+        else:
+            new_row = pd.DataFrame([{
+                "ID": str(uuid.uuid4()),
+                "Unit Number": unit_number.strip(),
+                "Gate": gate.strip(),
+                "Departure Time": dep_str,
+                "Transport Type": st.session_state["transport_type"],
+                "Destination": destination.strip(),
+                "Comment": comment.strip(),
+                "Created At": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }])
+            data = pd.concat([data, new_row], ignore_index=True)
+            save_data(data)
+            st.success(TXT["saved"])
 
 # =========================
 # ---- Filter & Sort -------
 # =========================
-# --- Filter & Sort UI ---
 st.markdown('<div class="app-card">', unsafe_allow_html=True)
 fc1, fc2 = st.columns([2, 1])
 
-# Replace text input with dropdown
 search = fc1.selectbox(
     TXT["filter"],
     options=["All"] + [d for d in DESTINATIONS if d],
@@ -347,12 +393,10 @@ search = fc1.selectbox(
 
 sort_choice = fc2.selectbox(TXT["sort"], [TXT["sort_time"], TXT["sort_dest"]])
 
-# Apply filtering
 filtered = data.copy()
 if search != "All":
     filtered = filtered[filtered["Destination"] == search]
 
-# Apply sorting
 if sort_choice == TXT["sort_dest"]:
     filtered = filtered.sort_values(by=["Destination", "Departure Time"], kind="mergesort", na_position="last")
 else:
@@ -368,8 +412,8 @@ st.subheader(TXT["list"])
 if filtered.empty:
     st.info(TXT["none"])
 else:
-    for i, row in filtered.reset_index().iterrows():
-        real_index = row["index"]  # keep original index in data
+    for _, row in filtered.iterrows():
+        real_id = row["ID"]
         wrap = st.container()
         with wrap:
             c = st.columns([1.3, 1, 1, 1.2, 1.3, 2, 0.6, 0.6])
@@ -381,61 +425,64 @@ else:
             c[4].markdown(f"**{TXT['destination']}:** {row['Destination']}")
             c[5].markdown(f"**{TXT['comment']}:** {row['Comment'] if str(row['Comment']).strip() else '<span class=\"muted\">—</span>'}", unsafe_allow_html=True)
 
-            edit_pressed = c[6].button(TXT["edit"], key=f"edit_{real_index}", use_container_width=True)
-            del_pressed = c[7].button(TXT["delete"], key=f"del_{real_index}", use_container_width=True)
+            edit_pressed = c[6].button(TXT["edit"], key=f"edit_{real_id}", use_container_width=True)
+            del_pressed = c[7].button(TXT["delete"], key=f"del_{real_id}", use_container_width=True)
 
             st.markdown('<hr style="margin:0.4rem 0; opacity:0.2;">', unsafe_allow_html=True)
 
             if edit_pressed:
-                st.session_state.edit_index = real_index
+                st.session_state.edit_id = real_id
 
             if del_pressed:
-                st.session_state.confirm_delete = real_index
+                st.session_state.confirm_delete = real_id
 
         # Delete confirmation
-        if st.session_state.confirm_delete == real_index:
+        if st.session_state.confirm_delete == real_id:
             with st.warning(TXT["confirm_title"]):
                 dc1, dc2 = st.columns(2)
-                if dc1.button(TXT["yes"], key=f"yes_{real_index}"):
-                    data = data.drop(real_index).reset_index(drop=True)
+                if dc1.button(TXT["yes"], key=f"yes_{real_id}"):
+                    data = data[data["ID"] != real_id].reset_index(drop=True)
                     save_data(data)
                     st.session_state.confirm_delete = None
                     st.success(TXT["toast_deleted"])
-                    st.experimental_rerun()
-                if dc2.button(TXT["no"], key=f"no_{real_index}"):
+                    st.rerun()
+                if dc2.button(TXT["no"], key=f"no_{real_id}"):
                     st.session_state.confirm_delete = None
-                    st.experimental_rerun()
+                    st.rerun()
 
 # =========================
 # ---- Edit Form -----------
 # =========================
-if st.session_state.edit_index is not None and st.session_state.edit_index < len(data):
-    idx = st.session_state.edit_index
+if st.session_state.edit_id is not None and (data["ID"] == st.session_state.edit_id).any():
+    idx = data.index[data["ID"] == st.session_state.edit_id][0]
     st.markdown('<div class="app-card">', unsafe_allow_html=True)
     st.subheader(TXT["edit_title"])
     with st.form("edit_form"):
         e1, e2, e3, e4 = st.columns([1,1,1,1])
         unit_number = e1.text_input(f"{TXT['unit']} *", value=str(data.loc[idx, "Unit Number"]))
         gate = e2.text_input(f"{TXT['gate']} *", value=str(data.loc[idx, "Gate"]))
+
         # parse stored time
         try:
             hh, mm = str(data.loc[idx, "Departure Time"]).split(":")
             default_time = time(int(hh), int(mm))
         except Exception:
             default_time = None
-        departure_time = e3.time_input(f"{TXT['time']} *", value=default_time)
-        destination = e4.selectbox(f"{TXT['destination']} *", DESTINATIONS,
-                                   index=max(0, DESTINATIONS.index(str(data.loc[idx, "Destination"])) if str(data.loc[idx, "Destination"]) in DESTINATIONS else 0))
+        departure_time_val = e3.time_input(f"{TXT['time']} *", value=default_time, step=timedelta(minutes=5))
+        destination = e4.selectbox(
+            f"{TXT['destination']} *",
+            DESTINATIONS,
+            index=max(0, DESTINATIONS.index(str(data.loc[idx, "Destination"])) if str(data.loc[idx, "Destination"]) in DESTINATIONS else 0)
+        )
 
-        # transport toggle in edit
         et1, et2, _sp = st.columns([1,1,3])
         curr_t = data.loc[idx, "Transport Type"]
         if "edit_transport" not in st.session_state:
             st.session_state.edit_transport = curr_t
 
-        if et1.button(f"🚆 {TXT['train']}", key="edit_train", use_container_width=True):
+        if et1.button(f"🚆 {TXT['train']}", key=f"edit_train_{idx}", use_container_width=True):
             st.session_state.edit_transport = "Train"
-        if et2.button(f"🚗 {TXT['car']}", key="edit_car", use_container_width=True):
+        if et2.button(f"🚗 {TXT['car']}", key=f"edit_car_{idx}", use_container_width=True):
             st.session_state.edit_transport = "Car"
 
         sel_pill_class = "pill-train" if st.session_state.edit_transport == "Train" else "pill-car"
@@ -447,23 +494,31 @@ if st.session_state.edit_index is not None and st.session_state.edit_index < len
 
         if save_changes:
             # validation
-            if not unit_number.strip() or not gate.strip() or not departure_time or not destination or not st.session_state.edit_transport:
+            if not unit_number.strip() or not gate.strip() or not departure_time_val or not destination or not st.session_state.edit_transport:
                 st.warning(TXT["validation"])
             else:
-                data.loc[idx] = [
-                    unit_number.strip(),
-                    gate.strip(),
-                    departure_time.strftime("%H:%M"),
-                    st.session_state.edit_transport,
-                    str(destination).strip(),
-                    comment.strip(),
-                    data.loc[idx, "Created At"] if pd.notna(data.loc[idx, "Created At"]) else datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                ]
-                save_data(data)
-                st.success(TXT["updated"])
-                st.session_state.edit_index = None
-                st.session_state.edit_transport = None
-                st.experimental_rerun()
+                # Duplicate check excluding this ID
+                dep_str = departure_time_val.strftime("%H:%M")
+                dup_mask = (data["ID"] != data.loc[idx, "ID"]) & \
+                           (data["Unit Number"].astype(str).str.strip() == unit_number.strip()) & \
+                           (data["Departure Time"].astype(str).str.strip() == dep_str) & \
+                           (data["Destination"].astype(str).str.strip() == str(destination).strip())
+                if dup_mask.any():
+                    st.warning(TXT["duplicate"])
+                else:
+                    data.loc[idx, "Unit Number"] = unit_number.strip()
+                    data.loc[idx, "Gate"] = gate.strip()
+                    data.loc[idx, "Departure Time"] = dep_str
+                    data.loc[idx, "Transport Type"] = st.session_state.edit_transport
+                    data.loc[idx, "Destination"] = str(destination).strip()
+                    data.loc[idx, "Comment"] = comment.strip()
+                    if pd.isna(data.loc[idx, "Created At"]) or str(data.loc[idx, "Created At"]).strip() == "":
+                        data.loc[idx, "Created At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    save_data(data)
+                    st.success(TXT["updated"])
+                    st.session_state.edit_id = None
+                    st.session_state.edit_transport = None
+                    st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
@@ -471,17 +526,17 @@ if st.session_state.edit_index is not None and st.session_state.edit_index < len
 # =========================
 st.markdown('<div class="app-card">', unsafe_allow_html=True)
 ec1, ec2, ec3 = st.columns([1,1,1])
-ec1.download_button(TXT["export_csv"], data.to_csv(index=False).encode("utf-8"), file_name="departures.csv", mime="text/csv")
+ec1.download_button(TXT["export_csv"], data.to_csv(index=False).encode("utf-8"), file_name="departures.csv")
 xlsx_bytes = export_excel(data)
-ec2.download_button(TXT["export_xlsx"], xlsx_bytes, file_name="departures.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+ec2.download_button(TXT["export_xlsx"], xlsx_bytes, file_name="departures.xlsx")
 pdf_bytes = export_pdf(data)
 if pdf_bytes:
-    ec3.download_button(TXT["export_pdf"], pdf_bytes, file_name="departures.pdf", mime="application/pdf")
+    ec3.download_button(TXT["export_pdf"], pdf_bytes, file_name="departures.pdf")
 else:
-    ec3.write('<span class="muted">Install <code>reportlab</code> for PDF export: <code>pip install reportlab</code></span>', unsafe_allow_html=True)
+    ec3.write(f'<span class="muted">{TXT["install_reportlab"]}</span>', unsafe_allow_html=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
 # ---- Notes ---------------
 # =========================
-st.caption("Data is persisted to a local CSV file for simplicity. For multi-user/cloud setups, swap CSV for a backend (e.g., Firebase or a small Node/Flask API).")
+st.caption("Data is persisted to a local CSV file with a file lock for safety. For multi-user/cloud setups, replace CSV with a backend (e.g., Firebase or small API).")
