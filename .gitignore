@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+
+# Streamlit cache
+.streamlit/secrets.toml
+*/.cache/
+
+# Local data
+data.db
+departures.csv
