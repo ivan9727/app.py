@@ -334,7 +334,6 @@ with st.sidebar:
         st.markdown("No data for this date.")
 
 # Glavni sadržaj
-st publics
 st.title("Departure Manager", anchor=False)
 
 # Forma za dodavanje
