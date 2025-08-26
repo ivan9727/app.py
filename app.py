@@ -78,7 +78,6 @@ def add_or_update_departure(id=None, service_date=None, unit_number=None, gate=N
                 destination, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (service_date, unit_number, gate, departure_time, transport_type, destination, comment, created_at))
         conn.commit()
-   ínico
     st.cache_data.clear()
     return True, "Success"
 
