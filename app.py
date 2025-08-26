@@ -78,7 +78,7 @@ def add_or_update_departure(id=None, service_date=None, unit_number=None, gate=N
                 destination, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (service_date, unit_number, gate, departure_time, transport_type, destination, comment, created_at))
         conn.commit()
-    st.cache_data.clear()  # Invalidacija cachea
+    st.cache_data.clear()
     return True, "Success"
 
 def delete_departure(id):
@@ -86,50 +86,122 @@ def delete_departure(id):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM departures WHERE id = ?', (id,))
         conn.commit()
-    st.cache_data.clear()  # Invalidacija cachea
+    st.cache_data.clear()
 
 # Destinacije
 DESTINATIONS = ["TRONDHEIM", "ÅLESUND", "MOLDE", "FØRDE", "HAUGESUND", "STAVANGER"]
 
-# Custom CSS za dizajn
+# Custom CSS za brutalno lijep dizajn
 st.markdown("""
     <style>
-    .stApp { background-color: #0e1117; color: #fafafa; }
-    .stButton>button { border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    input, select, .stTextInput>div>div>input { border-radius: 8px; background-color: #1f2937; color: #fafafa; border: 1px solid #4b5563; }
-    .stTimeInput>div>div>input { border-radius: 8px; background-color: #1f2937; color: #fafafa; border: 1px solid #4b5563; }
-    .stSelectbox>div>div>select { border-radius: 8px; background-color: #1f2937; color: #fafafa; border: 1px solid #4b5563; }
-    button[kind="primary"] { background-color: #3b82f6; color: white; }
-    .tile { background-color: #1f2937; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    .chip { display: inline-block; padding: 4px 8px; border-radius: 16px; margin-right: 5px; font-size: 12px; }
-    .train-chip { background-color: #ef4444; color: white; }
-    .car-chip { background-color: #22c55e; color: white; }
-    .stExpander { border: none; }
-    .stExpander>summary { background-color: #1f2937; border-radius: 8px; padding: 8px; }
-    .comment { font-size: 12px; color: #9ca3af; margin-top: 5px; }
-    section[data-testid="stSidebar"] { background-color: #111827; }
+    .stApp { 
+        background-color: #0e1117; 
+        color: #fafafa; 
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .stButton>button { 
+        border-radius: 12px; 
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+        transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    }
+    .stButton>button:hover { 
+        transform: translateY(-2px); 
+        box-shadow: 0 5px 10px rgba(0,0,0,0.4); 
+    }
+    button[kind="primary"] { 
+        background-color: #2563eb; 
+        color: white; 
+        font-weight: 600; 
+        padding: 12px 24px; 
+    }
+    input, select, .stTextInput>div>div>input, .stTimeInput>div>div>input, .stSelectbox>div>div>select { 
+        border-radius: 12px; 
+        background-color: #1f2937; 
+        color: #fafafa; 
+        border: 1px solid #4b5563; 
+        padding: 10px; 
+        font-size: 16px; 
+    }
+    .tile { 
+        background-color: #1f2937; 
+        border-radius: 12px; 
+        padding: 12px; 
+        margin-bottom: 12px; 
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+        animation: fadeIn 0.3s ease-in; 
+        display: flex; 
+        flex-wrap: wrap; 
+        gap: 8px; 
+        align-items: center; 
+    }
+    .chip { 
+        display: inline-block; 
+        padding: 6px 12px; 
+        border-radius: 16px; 
+        font-size: 14px; 
+        font-weight: 500; 
+        background-color: #374151; 
+        color: #e5e7eb; 
+    }
+    .train-chip { 
+        background-color: #dc2626; 
+        color: white; 
+    }
+    .car-chip { 
+        background-color: #16a34a; 
+        color: white; 
+    }
+    .comment { 
+        font-size: 12px; 
+        color: #9ca3af; 
+        margin-top: 8px; 
+        display: none; 
+    }
+    .tile:hover .comment { 
+        display: block; 
+    }
+    .stExpander>summary { 
+        background-color: #1f2937; 
+        border-radius: 12px; 
+        padding: 10px; 
+        font-weight: 500; 
+    }
+    section[data-testid="stSidebar"] { 
+        background-color: #111827; 
+        padding: 20px; 
+    }
+    @keyframes fadeIn { 
+        from { opacity: 0; transform: translateY(10px); } 
+        to { opacity: 1; transform: translateY(0); } 
+    }
+    .stForm { 
+        background-color: #111827; 
+        padding: 20px; 
+        border-radius: 12px; 
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Auto-refresh svakih 3 sekunde
+# Auto-refresh
 st_autorefresh(interval=3000, key="data_refresh")
 
 # Sidebar
 with st.sidebar:
-    st.title("Service Date")
+    st.title("Service Date", anchor=False)
     today = datetime.today().date()
     yesterday = today - timedelta(days=1)
     
     col1, col2 = st.columns(2)
-    if col1.button("Today"):
+    if col1.button("Today", use_container_width=True):
         st.session_state.selected_date = today.strftime("%Y-%m-%d")
-    if col2.button("Yesterday"):
+    if col2.button("Yesterday", use_container_width=True):
         st.session_state.selected_date = yesterday.strftime("%Y-%m-%d")
     
     if "selected_date" not in st.session_state:
         st.session_state.selected_date = today.strftime("%Y-%m-%d")
     
-    selected_date = st.date_input("Select Date", value=datetime.strptime(st.session_state.selected_date, "%Y-%m-%d"))
+    selected_date = st.date_input("Select Date", value=datetime.strptime(st.session_state.selected_date, "%Y-%m-%d"), label_visibility="collapsed")
     service_date = selected_date.strftime("%Y-%m-%d")
     st.session_state.selected_date = service_date
     
@@ -139,39 +211,46 @@ with st.sidebar:
         total = len(df)
         train_count = len(df[df['transport_type'] == 'Train'])
         car_count = len(df[df['transport_type'] == 'Car'])
-        st.subheader("Summary")
-        st.write(f"Total: {total}")
-        st.write(f"Train: {train_count}")
-        st.write(f"Car: {car_count}")
+        st.subheader("Summary", anchor=False)
+        st.markdown(f"**Total**: {total}")
+        st.markdown(f"**Train**: {train_count}")
+        st.markdown(f"**Car**: {car_count}")
     else:
-        st.subheader("Summary")
-        st.write("No data for this date.")
+        st.subheader("Summary", anchor=False)
+        st.markdown("No data for this date.")
 
 # Glavni sadržaj
-st.title("Departure Manager")
+st.title("Departure Manager", anchor=False)
 
 # Forma za dodavanje
-with st.form(key='add_form', clear_on_submit=True):  # Auto-clear forme
-    st.subheader("Add Departure")
-    unit = st.text_input("Unit")
-    gate_str = st.text_input("Gate (numbers only)")
+with st.form(key='add_form', clear_on_submit=True):
+    st.subheader("Add Departure", anchor=False)
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        unit = st.text_input("Unit", placeholder="Enter unit", label_visibility="visible")
+    with col2:
+        gate_str = st.text_input("Gate", placeholder="Numbers only", label_visibility="visible")
     
     gate_valid = gate_str.isdigit() if gate_str else True
     if not gate_valid and gate_str:
         st.error("Gate must contain only numbers.")
     gate = int(gate_str) if gate_valid and gate_str else None
     
-    time = st.time_input("Time")
-    departure_time = time.strftime("%H:%M") if time else None
-    transport = st.selectbox("Transport", ["Train", "Car"])
-    destination = st.selectbox("Destination", DESTINATIONS)
-    comment = st.text_area("Comment", height=50)
+    col3, col4 = st.columns(2)
+    with col3:
+        time = st.time_input("Time", label_visibility="visible")
+    with col4:
+        transport = st.selectbox("Transport", ["Train", "Car"], label_visibility="visible")
     
-    submit = st.form_submit_button("Add", type="primary")
+    destination = st.selectbox("Destination", DESTINATIONS, label_visibility="visible")
+    comment = st.text_area("Comment", height=60, placeholder="Optional comment", label_visibility="visible")
+    
+    submit = st.form_submit_button("Add", type="primary", use_container_width=True)
     
     if submit:
+        departure_time = time.strftime("%H:%M") if time else None
         if not (unit and gate_valid and gate_str and departure_time and transport and destination):
-            st.error("All fields are required. Gate must be a number.")
+            st.error("All fields except Comment are required. Gate must be a number.")
         else:
             success, message = add_or_update_departure(None, service_date, unit, gate, departure_time, transport, destination, comment)
             if success:
@@ -195,12 +274,23 @@ with st.expander("Filters & Sorting"):
     st.session_state.filter_destination = st.selectbox(
         "Destination Filter",
         options,
-        index=filter_index
+        index=filter_index,
+        label_visibility="visible"
     )
-    st.session_state.sort_by = st.selectbox("Sort By", ["Time", "Destination"], index=["Time", "Destination"].index(st.session_state.sort_by))
-    st.session_state.search_unit = st.text_input("Quick Search by Unit", value=st.session_state.search_unit)
+    st.session_state.sort_by = st.selectbox(
+        "Sort By",
+        ["Time", "Destination"],
+        index=["Time", "Destination"].index(st.session_state.sort_by),
+        label_visibility="visible"
+    )
+    st.session_state.search_unit = st.text_input(
+        "Search Unit",
+        value=st.session_state.search_unit,
+        placeholder="Enter unit to search",
+        label_visibility="visible"
+    )
     
-    if st.button("Clear Filters"):
+    if st.button("Clear Filters", use_container_width=True):
         st.session_state.filter_destination = "All"
         st.session_state.sort_by = "Time"
         st.session_state.search_unit = ""
@@ -219,7 +309,7 @@ if not df.empty:
         df = df.sort_values('destination')
 
 # Prikaz liste kao tileova
-st.subheader("Departures List")
+st.subheader("Departures", anchor=False)
 if df.empty:
     st.info("No departures for this date.")
 else:
@@ -238,28 +328,37 @@ else:
             
             with st.expander("Actions"):
                 col_edit, col_delete = st.columns(2)
-                if col_edit.button("Edit", key=f"edit_btn_{row['id']}"):
+                if col_edit.button("Edit", key=f"edit_btn_{row['id']}", use_container_width=True):
                     st.session_state.edit_id = row['id']
-                if col_delete.button("Delete", key=f"delete_btn_{row['id']}"):
+                if col_delete.button("Delete", key=f"delete_btn_{row['id']}", use_container_width=True):
                     st.session_state.delete_id = row['id']
             
             if 'edit_id' in st.session_state and st.session_state.edit_id == row['id']:
                 with st.form(key=f'edit_form_{row["id"]}', clear_on_submit=True):
-                    edit_unit = st.text_input("Unit", value=row['unit_number'])
-                    edit_gate_str = st.text_input("Gate (numbers only)", value=str(row['gate']))
+                    col1, col2 = st.columns([3, 2])
+                    with col1:
+                        edit_unit = st.text_input("Unit", value=row['unit_number'], label_visibility="visible")
+                    with col2:
+                        edit_gate_str = st.text_input("Gate", value=str(row['gate']), label_visibility="visible")
+                    
                     edit_gate_valid = edit_gate_str.isdigit() if edit_gate_str else True
                     if not edit_gate_valid and edit_gate_str:
                         st.error("Gate must contain only numbers.")
                     edit_gate = int(edit_gate_str) if edit_gate_valid and edit_gate_str else None
-                    edit_time = st.time_input("Time", value=datetime.strptime(row['departure_time'], "%H:%M").time())
-                    edit_departure_time = edit_time.strftime("%H:%M") if edit_time else None
-                    edit_transport = st.selectbox("Transport", ["Train", "Car"], index=0 if row['transport_type'] == "Train" else 1)
-                    edit_destination = st.selectbox("Destination", DESTINATIONS, index=DESTINATIONS.index(row['destination']))
-                    edit_comment = st.text_area("Comment", value=row['comment'], height=50)
                     
-                    if st.form_submit_button("Save Edit", type="primary"):
+                    col3, col4 = st.columns(2)
+                    with col3:
+                        edit_time = st.time_input("Time", value=datetime.strptime(row['departure_time'], "%H:%M").time(), label_visibility="visible")
+                    with col4:
+                        edit_transport = st.selectbox("Transport", ["Train", "Car"], index=0 if row['transport_type'] == "Train" else 1, label_visibility="visible")
+                    
+                    edit_destination = st.selectbox("Destination", DESTINATIONS, index=DESTINATIONS.index(row['destination']), label_visibility="visible")
+                    edit_comment = st.text_area("Comment", value=row['comment'], height=60, label_visibility="visible")
+                    
+                    if st.form_submit_button("Save Edit", type="primary", use_container_width=True):
+                        edit_departure_time = edit_time.strftime("%H:%M") if edit_time else None
                         if not (edit_unit and edit_gate_valid and edit_gate_str and edit_departure_time and edit_transport and edit_destination):
-                            st.error("All fields are required. Gate must be a number.")
+                            st.error("All fields except Comment are required. Gate must be a number.")
                         else:
                             success, message = add_or_update_departure(row['id'], service_date, edit_unit, edit_gate, edit_departure_time, edit_transport, edit_destination, edit_comment)
                             if success:
@@ -272,24 +371,24 @@ else:
             if 'delete_id' in st.session_state and st.session_state.delete_id == row['id']:
                 st.warning("Are you sure you want to delete this departure?")
                 col_yes, col_no = st.columns(2)
-                if col_yes.button("Yes"):
+                if col_yes.button("Yes", use_container_width=True):
                     delete_departure(row['id'])
                     st.success("Departure deleted!")
                     del st.session_state.delete_id
                     st.rerun()
-                if col_no.button("No"):
+                if col_no.button("No", use_container_width=True):
                     del st.session_state.delete_id
                     st.rerun()
 
 # Izvoz podataka
-st.subheader("Export Data")
+st.subheader("Export", anchor=False)
 if df.empty:
     st.info("No data to export.")
 else:
     col_csv, col_excel, col_pdf = st.columns(3)
     
     csv = df.to_csv(index=False).encode('utf-8')
-    col_csv.download_button("Download CSV", data=csv, file_name=f"departures_{service_date}.csv", mime='text/csv')
+    col_csv.download_button("CSV", data=csv, file_name=f"departures_{service_date}.csv", mime='text/csv', use_container_width=True)
     
     output = BytesIO()
     with Workbook(output) as workbook:
@@ -301,7 +400,7 @@ else:
                 worksheet.write(row_num, col_num, cell_data)
         worksheet.set_column(0, len(df.columns) - 1, 15)
     output.seek(0)
-    col_excel.download_button("Download Excel", data=output, file_name=f"departures_{service_date}.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    col_excel.download_button("Excel", data=output, file_name=f"departures_{service_date}.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', use_container_width=True)
     
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=A4)
@@ -321,4 +420,4 @@ else:
             y = height - 50
     p.save()
     buffer.seek(0)
-    col_pdf.download_button("Download PDF", data=buffer, file_name=f"departures_{service_date}.pdf", mime='application/pdf')
+    col_pdf.download_button("PDF", data=buffer, file_name=f"departures_{service_date}.pdf", mime='application/pdf', use_container_width=True)
