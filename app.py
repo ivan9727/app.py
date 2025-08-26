@@ -425,7 +425,7 @@ if not df.empty:
         df = df.sort_values('destination')
 
 # Prikaz liste kao tileova
-st.subheader("Departures", anchor=False)
+st.subheader("Departures1", anchor=False)
 if df.empty:
     st.info("No departures for this date.")
 else:
