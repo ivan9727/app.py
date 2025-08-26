@@ -78,6 +78,7 @@ def add_or_update_departure(id=None, service_date=None, unit_number=None, gate=N
                 destination, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (service_date, unit_number, gate, departure_time, transport_type, destination, comment, created_at))
         conn.commit()
+   ínico
     st.cache_data.clear()
     return True, "Success"
 
@@ -91,97 +92,206 @@ def delete_departure(id):
 # Destinacije
 DESTINATIONS = ["TRONDHEIM", "ÅLESUND", "MOLDE", "FØRDE", "HAUGESUND", "STAVANGER"]
 
-# Custom CSS za brutalno lijep dizajn
-st.markdown("""
-    <style>
-    .stApp { 
-        background-color: #0e1117; 
-        color: #fafafa; 
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-    .stButton>button { 
-        border-radius: 12px; 
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
-        transition: transform 0.2s ease, box-shadow 0.2s ease; 
-    }
-    .stButton>button:hover { 
-        transform: translateY(-2px); 
-        box-shadow: 0 5px 10px rgba(0,0,0,0.4); 
-    }
-    button[kind="primary"] { 
-        background-color: #2563eb; 
-        color: white; 
-        font-weight: 600; 
-        padding: 12px 24px; 
-    }
-    input, select, .stTextInput>div>div>input, .stTimeInput>div>div>input, .stSelectbox>div>div>select { 
-        border-radius: 12px; 
-        background-color: #1f2937; 
-        color: #fafafa; 
-        border: 1px solid #4b5563; 
-        padding: 10px; 
-        font-size: 16px; 
-    }
-    .tile { 
-        background-color: #1f2937; 
-        border-radius: 12px; 
-        padding: 12px; 
-        margin-bottom: 12px; 
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
-        animation: fadeIn 0.3s ease-in; 
-        display: flex; 
-        flex-wrap: wrap; 
-        gap: 8px; 
-        align-items: center; 
-    }
-    .chip { 
-        display: inline-block; 
-        padding: 6px 12px; 
-        border-radius: 16px; 
-        font-size: 14px; 
-        font-weight: 500; 
-        background-color: #374151; 
-        color: #e5e7eb; 
-    }
-    .train-chip { 
-        background-color: #dc2626; 
-        color: white; 
-    }
-    .car-chip { 
-        background-color: #16a34a; 
-        color: white; 
-    }
-    .comment { 
-        font-size: 12px; 
-        color: #9ca3af; 
-        margin-top: 8px; 
-        display: none; 
-    }
-    .tile:hover .comment { 
-        display: block; 
-    }
-    .stExpander>summary { 
-        background-color: #1f2937; 
-        border-radius: 12px; 
-        padding: 10px; 
-        font-weight: 500; 
-    }
-    section[data-testid="stSidebar"] { 
-        background-color: #111827; 
-        padding: 20px; 
-    }
-    @keyframes fadeIn { 
-        from { opacity: 0; transform: translateY(10px); } 
-        to { opacity: 1; transform: translateY(0); } 
-    }
-    .stForm { 
-        background-color: #111827; 
-        padding: 20px; 
-        border-radius: 12px; 
-        box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
-    }
-    </style>
-""", unsafe_allow_html=True)
+# Tema u session state-u
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+# CSS za obje teme
+def get_theme_css():
+    if st.session_state.theme == "dark":
+        return """
+            .stApp { 
+                background-color: #0e1117; 
+                color: #fafafa; 
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            }
+            .stButton>button { 
+                border-radius: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+                transition: transform 0.2s ease, box-shadow 0.2s ease; 
+            }
+            .stButton>button:hover { 
+                transform: translateY(-2px); 
+                box-shadow: 0 5px 10px rgba(0,0,0,0.4); 
+            }
+            button[kind="primary"] { 
+                background-color: #2563eb; 
+                color: white; 
+                font-weight: 600; 
+                padding: 12px 24px; 
+            }
+            input, select, .stTextInput>div>div>input, .stTimeInput>div>div>input, .stSelectbox>div>div>select { 
+                border-radius: 12px; 
+                background-color: #1f2937; 
+                color: #fafafa; 
+                border: 1px solid #4b5563; 
+                padding: 10px; 
+                font-size: 16px; 
+            }
+            .tile { 
+                background-color: #1f2937; 
+                border-radius: 12px; 
+                padding: 12px; 
+                margin-bottom: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+                animation: fadeIn 0.3s ease-in; 
+                display: flex; 
+                flex-wrap: wrap; 
+                gap: 8px; 
+                align-items: center; 
+            }
+            .chip { 
+                padding: 6px 12px; 
+                border-radius: 16px; 
+                font-size: 14px; 
+                font-weight: 500; 
+                background-color: #374151; 
+                color: #e5e7eb; 
+            }
+            .train-chip { 
+                background-color: #dc2626; 
+                color: white; 
+            }
+            .car-chip { 
+                background-color: #16a34a; 
+                color: white; 
+            }
+            .comment { 
+                font-size: 12px; 
+                color: #9ca3af; 
+                margin-top: 8px; 
+                display: none; 
+            }
+            .tile:hover .comment { 
+                display: block; 
+            }
+            .stExpander>summary { 
+                background-color: #1f2937; 
+                border-radius: 12px; 
+                padding: 10px; 
+                font-weight: 500; 
+            }
+            section[data-testid="stSidebar"] { 
+                background-color: #111827; 
+                padding: 20px; 
+            }
+            .theme-toggle { 
+                background-color: #2563eb; 
+                color: white; 
+                border-radius: 12px; 
+                padding: 10px; 
+                font-weight: 600; 
+            }
+            @keyframes fadeIn { 
+                from { opacity: 0; transform: translateY(10px); } 
+                to { opacity: 1; transform: translateY(0); } 
+            }
+            .stForm { 
+                background-color: #111827; 
+                padding: 20px; 
+                border-radius: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.3); 
+            }
+        """
+    else:
+        return """
+            .stApp { 
+                background-color: #f9fafb; 
+                color: #111827; 
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            }
+            .stButton>button { 
+                border-radius: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.1); 
+                transition: transform 0.2s ease, box-shadow 0.2s ease; 
+            }
+            .stButton>button:hover { 
+                transform: translateY(-2px); 
+                box-shadow: 0 5px 10px rgba(0,0,0,0.2); 
+            }
+            button[kind="primary"] { 
+                background-color: #2563eb; 
+                color: white; 
+                font-weight: 600; 
+                padding: 12px 24px; 
+            }
+            input, select, .stTextInput>div>div>input, .stTimeInput>div>div>input, .stSelectbox>div>div>select { 
+                border-radius: 12px; 
+                background-color: #ffffff; 
+                color: #111827; 
+                border: 1px solid #d1d5db; 
+                padding: 10px; 
+                font-size: 16px; 
+            }
+            .tile { 
+                background-color: #ffffff; 
+                border-radius: 12px; 
+                padding: 12px; 
+                margin-bottom: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.1); 
+                animation: fadeIn 0.3s ease-in; 
+                display: flex; 
+                flex-wrap: wrap; 
+                gap: 8px; 
+                align-items: center; 
+            }
+            .chip { 
+                padding: 6px 12px; 
+                border-radius: 16px; 
+                font-size: 14px; 
+                font-weight: 500; 
+                background-color: #e5e7eb; 
+                color: #374151; 
+            }
+            .train-chip { 
+                background-color: #dc2626; 
+                color: white; 
+            }
+            .car-chip { 
+                background-color: #16a34a; 
+                color: white; 
+            }
+            .comment { 
+                font-size: 12px; 
+                color: #6b7280; 
+                margin-top: 8px; 
+                display: none; 
+            }
+            .tile:hover .comment { 
+                display: block; 
+            }
+            .stExpander>summary { 
+                background-color: #ffffff; 
+                border-radius: 12px; 
+                padding: 10px; 
+                font-weight: 500; 
+                color: #374151; 
+            }
+            section[data-testid="stSidebar"] { 
+                background-color: #f3f4f6; 
+                padding: 20px; 
+            }
+            .theme-toggle { 
+                background-color: #2563eb; 
+                color: white; 
+                border-radius: 12px; 
+                padding: 10px; 
+                font-weight: 600; 
+            }
+            @keyframes fadeIn { 
+                from { opacity: 0; transform: translateY(10px); } 
+                to { opacity: 1; transform: translateY(0); } 
+            }
+            .stForm { 
+                background-color: #ffffff; 
+                padding: 20px; 
+                border-radius: 12px; 
+                box-shadow: 0 3px 6px rgba(0,0,0,0.1); 
+            }
+        """
+
+# Primjena CSS-a
+st.markdown(f"<style>{get_theme_css()}</style>", unsafe_allow_html=True)
 
 # Auto-refresh
 st_autorefresh(interval=3000, key="data_refresh")
@@ -205,6 +315,11 @@ with st.sidebar:
     service_date = selected_date.strftime("%Y-%m-%d")
     st.session_state.selected_date = service_date
     
+    # Gumb za prebacivanje teme
+    if st.button("Switch to " + ("Light" if st.session_state.theme == "dark" else "Dark") + " Theme", key="theme_toggle", use_container_width=True):
+        st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
+        st.rerun()
+    
     # Summary
     df = get_departures(service_date)
     if not df.empty:
@@ -220,6 +335,7 @@ with st.sidebar:
         st.markdown("No data for this date.")
 
 # Glavni sadržaj
+st publics
 st.title("Departure Manager", anchor=False)
 
 # Forma za dodavanje
