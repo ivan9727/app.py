@@ -243,4 +243,98 @@ else:
                 </div>
             """, unsafe_allow_html=True)
             
-            # 3 točkice popover za
+            # 3 točkice popover za akcije
+            with st.expander("Actions"):
+                col_edit, col_delete = st.columns(2)
+                if col_edit.button("Edit", key=f"edit_btn_{row['id']}"):
+                    st.session_state.edit_id = row['id']
+                if col_delete.button("Delete", key=f"delete_btn_{row['id']}"):
+                    st.session_state.delete_id = row['id']
+            
+            # Inline edit forma
+            if 'edit_id' in st.session_state and st.session_state.edit_id == row['id']:
+                with st.form(key=f'edit_form_{row["id"]}'):
+                    edit_unit = st.text_input("Unit", value=row['unit_number'])
+                    edit_gate_str = st.text_input("Gate (numbers only)", value=str(row['gate']))
+                    edit_gate_valid = edit_gate_str.isdigit() if edit_gate_str else True
+                    if not edit_gate_valid and edit_gate_str:
+                        st.error("Gate must contain only numbers.")
+                    edit_gate = int(edit_gate_str) if edit_gate_valid and edit_gate_str else None
+                    edit_time = st.time_input("Time", value=datetime.strptime(row['departure_time'], "%H:%M").time())
+                    edit_departure_time = edit_time.strftime("%H:%M") if edit_time else None
+                    edit_transport = st.selectbox("Transport", ["Train", "Car"], index=0 if row['transport_type'] == "Train" else 1)
+                    edit_destination = st.selectbox("Destination", DESTINATIONS, index=DESTINATIONS.index(row['destination']))
+                    edit_comment = st.text_area("Comment", value=row['comment'], height=50)
+                    
+                    if st.form_submit_button("Save Edit", type="primary"):
+                        if not (edit_unit and edit_gate_valid and edit_gate_str and edit_departure_time and edit_transport and edit_destination):
+                            st.error("All fields are required. Gate must be a number.")
+                        else:
+                            success, message = add_or_update_departure(row['id'], service_date, edit_unit, edit_gate, edit_departure_time, edit_transport, edit_destination, edit_comment)
+                            if success:
+                                st.success("Departure updated successfully!")
+                                del st.session_state.edit_id
+                                st.rerun()
+                            else:
+                                st.error(message)
+            
+            # Potvrda brisanja
+            if 'delete_id' in st.session_state and st.session_state.delete_id == row['id']:
+                st.warning("Are you sure you want to delete this departure?")
+                col_yes, col_no = st.columns(2)
+                if col_yes.button("Yes"):
+                    delete_departure(row['id'])
+                    st.success("Departure deleted!")
+                    del st.session_state.delete_id
+                    st.rerun()
+                if col_no.button("No"):
+                    del st.session_state.delete_id
+                    st.rerun()
+
+# Izvoz gumbi (onemogućeni ako nema podataka)
+st.subheader("Export Data")
+if df.empty:
+    st.info("No data to export.")
+else:
+    col_csv, col_excel, col_pdf = st.columns(3)
+    
+    # CSV
+    csv = df.to_csv(index=False).encode('utf-8')
+    col_csv.download_button("Download CSV", data=csv, file_name=f"departures_{service_date}.csv", mime='text/csv')
+    
+    # Excel sa xlsxwriter
+    output = BytesIO()
+    with Workbook(output) as workbook:
+        worksheet = workbook.add_worksheet()
+        # Piši header
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value)
+        # Piši data
+        for row_num, row_data in enumerate(df.values, 1):
+            for col_num, cell_data in enumerate(row_data):
+                worksheet.write(row_num, col_num, cell_data)
+        # Podešavanje širina
+        worksheet.set_column(0, len(df.columns) - 1, 15)  # Default širina 15
+    output.seek(0)
+    col_excel.download_button("Download Excel", data=output, file_name=f"departures_{service_date}.xlsx", mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    
+    # PDF sa ReportLab
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    y = height - 50
+    p.drawString(50, y, f"Departures for {service_date}")
+    y -= 20
+    for col in df.columns:
+        p.drawString(50, y, col)
+        y -= 15
+    for _, row in df.iterrows():
+        for value in row:
+            p.drawString(50, y, str(value))
+            y -= 15
+        if y < 50:
+            p.showPage()
+            y = height - 50
+    p.save()
+    buffer.seek(0)
+    col_pdf.download_button("Download PDF", data=buffer, file_name=f"departures_{service_date}.pdf", mime='application/pdf')
