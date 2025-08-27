@@ -78,6 +78,7 @@ def add_or_update_departure(id=None, service_date=None, unit_number=None, gate=N
                 destination, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (service_date, unit_number, gate, departure_time, transport_type, destination, comment, created_at))
         conn.commit()
+    
     st.cache_data.clear()
     return True, "Success"
 
@@ -423,7 +424,7 @@ if not df.empty:
         df = df.sort_values('destination')
 
 # Prikaz liste kao tileova
-st.subheader("Departures1", anchor=False)
+st.subheader("Departures", anchor=False)
 if df.empty:
     st.info("No departures for this date.")
 else:
