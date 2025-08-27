@@ -299,6 +299,6 @@ with col4:
         st.download_button("⬇️ Last ned JSON", json_str, f"backup_{datetime.now().strftime('%Y-%m-%d')}.json", "application/json")
 
 # --- Utskriftsfot ---
-st.markdown
+st.markdown(
     f"<div class='print-footer'>Utskriftsdato: {datetime.now().strftime('%d.%m.%Y kl. %H:%M')}</div>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True)
