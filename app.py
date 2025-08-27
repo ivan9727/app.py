@@ -15,7 +15,7 @@ def load_data():
             data = json.load(f)
             for d in data:
                 if 'id' not in d:
-                    d['id'] = str(abs(hash(d.get('unitNumber', '')))))
+                    d['id'] = str(abs(hash(d.get('unitNumber', ''))))
             return data
     return []
 
