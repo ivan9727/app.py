@@ -3,4 +3,5 @@ xlsxwriter
 streamlit
 reportlab
 streamlit-autorefresh
+pip install plotly
 
